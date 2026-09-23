@@ -1,0 +1,8 @@
+# Keep the build context small and stop host build output from poisoning the image.
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+**/appsettings.Development.json
+Dockerfile
+.dockerignore

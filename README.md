@@ -192,15 +192,18 @@ Handles:
 
 # 🔧 5️⃣ Requirements
 
-### Backend
-- .NET 8 SDK
-- SQL Server
-- EF Core Tools (`dotnet-ef`)
-- Visual Studio
+### Docker (recommended — covers backend, frontend and database)
+- Docker Desktop
 
-### Frontend
-- Node.js 18+
-- npm or yarn
+### Backend (only for local, non-Docker runs)
+- .NET 8 SDK
+- Visual Studio
+- No SQL Server install needed — local runs use the Docker database on port 1437
+- No `dotnet-ef` needed — the API applies migrations itself at startup
+
+### Frontend (only for local, non-Docker runs)
+- Node.js 20.12+ (for the built-in `process.loadEnvFile` used by the config script)
+- npm
 
 ### ESP32
 - Arduino IDE or PlatformIO
@@ -213,141 +216,244 @@ Handles:
 
 ---
 
-# 🚀 Step-by-Step: Running the Project
+# 🚀 Running the Project
 
-## 1️⃣ Backend Setup (API)
+There are two ways to run Entrio, and they share one configuration file.
 
-### 1. Clone the repository
+| Mode | What it is | Use it when |
+|---|---|---|
+| **Docker** | Whole stack in containers: SQL Server, API, web | Normal use; one command, nothing to install |
+| **Local** | API from Visual Studio, web from the Vite dev server | Debugging with breakpoints or hot reload |
 
-```bash
-git clone https://github.com/your-user/entrio.git
-cd entrio/backend
-```
-
-### 2. Configure database
-
-Open `appsettings.json`.
-
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=localhost;Database=Entrio;Trusted_Connection=True;MultipleActiveResultSets=true"
-}
-```
-
-### 3. Configure CORS (Backend)
-
-Because the frontend (React) and backend (API) run on different ports, we must allow the frontend origin in the API.
-
-Open **Program.cs** and add:
-
-```csharp
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("FrontendPolicy", policy =>
-    {
-        policy
-            .WithOrigins("http://localhost:5173", "http://localhost:3000")
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
-});
-```
-
-Then enable the policy:
-
-```bash
-app.UseCors("FrontendPolicy");
-```
-
-If you deploy later, add your real domain here instead of localhost.
-
-
-### 4. Apply database migrations
-
-From the `/backend` folder run:
-
-```bash
-dotnet ef database update
-```
-
-### 5. Run backend
-
-```bash
-dotnet run
-```
-
-Backend runs at:
-
-```bash
-https://localhost:7260
-```
-
-Keep it running.
-
-
-## 2️⃣ ESP32 Setup
-
-Open the esp32 project in Arduino IDE.
-
-Edit configuration:
-
-```bash
-const char* WIFI_SSID = "YourWifi";
-const char* WIFI_PASSWORD = "YourPassword";
-
-const char* SERVER_BASE_URL = "http://YOUR_PC_LOCAL_IP:5263";
-const char* DEVICE_KEY = "IoT-ESP32-KEY-2025-XXXX";
-```
-
-⚠ Important
-
-Use your local network IP, not localhost
-
-ESP32 and backend must be on the same Wi-Fi
-
-Upload to ESP32.
+Local runs use the **Docker database** through its published port, so you never
+need SQL Server installed on Windows. The database container must be up either way.
 
 ---
 
-## 3️⃣ Frontend Setup (React)
+## Configuration
 
-Go to the frontend project:
+All infrastructure config lives in **one gitignored file at the repo root: `.env`**.
+Nothing infrastructural is committed — no connection strings, no keys, not even
+empty placeholders.
+
+| File | Holds | Tracked? |
+|---|---|---|
+| `.env` | Every secret and connection string, for **both** run modes | ❌ gitignored |
+| `.env.example` | Template with placeholders and comments | ✅ tracked |
+| `Backend.IoT/IoT.API/appsettings.json` | Application behaviour only: logging, CORS origins, JWT issuer/audience | ✅ tracked |
+| `Backend.IoT/IoT.API/appsettings.Development.json` | The default `Logging` block, nothing else | ✅ tracked |
+| `Frontend.IoT/public/env.js` | Generated at start-up from `.env`; sets `window.__env` | ❌ gitignored |
+| `Esp32.IoT/secrets.h` | WiFi credentials, server URL, device key | ❌ gitignored |
+| `Esp32.IoT/secrets.example.h` | Template for the above | ✅ tracked |
+
+### How one `.env` serves both run modes
+
+`.env` uses plain, readable names (`JWT_KEY`). ASP.NET Core binds environment
+variables using `Section__Key` (`Jwt__Key`). The bridge differs per mode:
+
+- **Docker** — `docker-compose.yml` sets the `Section__Key` names directly in each
+  service's `environment:` block.
+- **Local** — `DotNetEnv` reads `.env`, then the alias map in
+  `IoT.API/Configuration/EnvironmentConfiguration.cs` copies each plain name onto
+  its `Section__Key` counterpart.
+
+Both express the **same mapping**, and each side says so in comments. A value
+already set in the environment always wins, so compose never loses to a stray file.
+
+Values that differ between host and container — chiefly the connection string,
+which points at the compose service name inside Docker but at `localhost,1437`
+outside — cannot be aliased (one name, two values). Those sit in a clearly marked
+block at the **bottom** of `.env` as explicit `Section__Key` lines.
+
+> **Adding a new secret means touching three places together:**
+> `.env.example`, the alias map in `EnvironmentConfiguration.cs`, and the
+> `environment:` block in `docker-compose.yml`.
+
+### First-time setup
+
+```bash
+cp .env.example .env
+```
+
+Then fill in `.env`:
+
+| Variable | Notes |
+|---|---|
+| `MSSQL_SA_PASSWORD` | 8+ chars, upper + lower + digit + symbol |
+| `JWT_KEY` | 32+ characters. `openssl rand -base64 48` |
+| `OWNER_EMAIL`, `OWNER_PIN` | Your login. Seeded on first start against an empty DB |
+| `DEVICE_KEY` | Shared secret for the ESP32. Must match `Esp32.IoT/secrets.h` |
+| `API_BASE_URL` | `http://localhost:5263/api` |
+| `ConnectionStrings__DefaultConnection` | Bottom block. Password must match `MSSQL_SA_PASSWORD` |
+
+> ⚠️ **SQL Server applies `MSSQL_SA_PASSWORD` only when its data volume is first
+> created.** Changing it later silently has no effect — the container keeps the
+> original password and the API can no longer log in. Fixing it requires
+> `docker compose down -v`, **which deletes the database.**
+
+---
+
+## Mode 1 — Docker
+
+```bash
+docker compose up -d --build
+```
+
+Startup is ordered by healthchecks: the API waits for SQL Server to answer
+`SELECT 1`, and the web container waits for the API's port to open. The API
+applies EF migrations and seeds the owner account and device row **before** it
+starts listening, so there is no manual `dotnet ef database update` step.
+
+| Service | URL | Container port |
+|---|---|---|
+| Web | <http://localhost:4300> | 80 |
+| API | <http://localhost:5263> | 8080 |
+| Swagger | <http://localhost:5263/swagger> | |
+| SQL Server | `localhost,1437` (user `sa`) | 1433 |
+
+**Why these ports.** `5263` is fixed because the ESP32 firmware hardcodes it in
+`SERVER_BASE_URL` and it is a listed CORS origin — changing it means reflashing
+the device. `4300` keeps `8080` free for the Vite dev server, so Docker and
+`npm run dev` can run at the same time; both origins are allowed in
+`appsettings.json`. `1437` avoids 1433 (local instance), 1434 (SQL Browser),
+1435 and 1436 (other projects' containers).
+
+Useful commands:
+
+```bash
+docker compose logs -f entrio-api     # follow API logs
+docker compose ps                     # health status
+docker compose down                   # stop, keep data
+docker compose down -v                # stop and DELETE the database
+```
+
+Query the database from inside its container (Git Bash needs `MSYS_NO_PATHCONV=1`
+so it does not mangle the Linux path):
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec entrio-sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" \
+  -C -d GarageIoT -Q "SELECT * FROM Devices"
+```
+
+---
+
+## Mode 2 — Local (Visual Studio + Vite)
+
+The database still comes from Docker:
+
+```bash
+docker compose up -d entrio-sqlserver
+```
+
+**Backend** — run the `http` profile from Visual Studio, or:
+
+```bash
+cd Backend.IoT/IoT.API
+dotnet run
+```
+
+No environment variables to set: `DotNetEnv` finds the repo-root `.env` by walking
+up from the working directory. The API listens on `http://0.0.0.0:5263` — bound to
+all interfaces on purpose, because the ESP32 reaches it over the LAN and a
+localhost-only binding would refuse it.
+
+> Visual Studio locks `bin`, so build or test from a shell with
+> `--artifacts-path <some other folder>` to avoid file-in-use errors.
+
+**Frontend**
 
 ```bash
 cd Frontend.IoT
-```
-
-1. Install dependencies
-```bash
 npm install
+npm run dev          # http://localhost:8080
 ```
 
-3. Configure API URL
+`npm run dev` automatically regenerates `public/env.js` from the repo-root `.env`
+first (the `predev` hook), so there is no separate configuration step.
 
-Create a file:
+> The API cannot run in Docker and locally at the same time — both want port 5263.
+> Stop one first: `docker compose stop entrio-api`.
+
+---
+
+## How the frontend is configured at runtime
+
+The API URL is **not** baked into the build. `import.meta.env.VITE_*` values are
+substituted by Vite during `npm run build` and frozen into the bundle, which would
+mean rebuilding the image to change backends. Instead:
+
+1. `env.js` sets `window.__env` and is loaded from `index.html` **before** the app
+   bundle.
+2. `src/config/env.ts` reads it and throws a clear, named error if a required value
+   is missing.
+3. It is written at **start-up**, not build time — by `scripts/generate-env.mjs`
+   locally (Node's built-in `process.loadEnvFile`, no dependency) and by
+   `/docker-entrypoint.d/40-env.sh` with `envsubst` in the container.
+
+`API_BASE_URL` must be reachable **from the browser**, so it is `http://localhost:5263/api`
+and never `http://entrio-api:8080`. The `fetch` runs on your machine, outside the
+Docker network, where compose service names do not resolve.
+
+Only public values belong in `env.js` — every visitor's browser downloads it.
+
+---
+
+## 🧪 Device simulator (no hardware required)
+
+The ESP32 controller has been disassembled, but it only ever spoke four HTTP
+endpoints. `tools/device-simulator/` re-implements them, so the whole control loop
+— web command → device poll → ack → status → dashboard — works without hardware.
 
 ```bash
-frontend/.env
+docker compose --profile simulator up -d
+docker compose logs -f entrio-device-sim
 ```
 
-Add:
+Or on the host:
 
 ```bash
-REACT_APP_API_URL=https://localhost:7260/api
+cd tools/device-simulator
+node --env-file=../../.env simulator.mjs
 ```
 
-3. Run frontend
+---
 
-```bash
-npm run dev
-```
+## 📡 ESP32 setup
 
-Open:
+Firmware is **not** containerised — it is cross-compiled and flashed to the chip,
+so there is nothing for a container to run. It does not need to be: the ESP32 is
+an **HTTP client over WiFi**, not a USB device, so it needs no serial passthrough.
+It simply calls the API on your PC's LAN address, and Docker publishes port 5263
+on that same address. A containerised backend needs no firmware changes at all.
 
-```bash
-http://localhost:3000
-```
+1. Copy the credentials template:
+
+   ```bash
+   cd Esp32.IoT
+   cp secrets.example.h secrets.h
+   ```
+
+2. Fill in `secrets.h` (gitignored):
+
+   - `WIFI_SSID` / `WIFI_PASSWORD`
+   - `SERVER_BASE_URL` — your PC's **LAN IP**, not `localhost`: the ESP32 resolves
+     this itself, so `localhost` would mean the ESP32. Find it with `ipconfig`.
+   - `DEVICE_KEY` — must exactly match `DEVICE_KEY` in the repo-root `.env`
+
+   These four are the bootstrap set: the device needs all of them **before** it can
+   reach the backend, so none of them can come from the API or `appsettings.json`.
+
+3. Ensure the ESP32 and your PC are on the same WiFi, then upload from the Arduino IDE.
+
+The device's identity GUID `0f8fad5b-d9cb-469f-a165-70867728950e` is hardcoded in
+the firmware, in `Frontend.IoT/src/services/scheduleService.ts`, and in the seeder
+(`DatabaseStartup.FirmwareDeviceId`). All three must agree.
+
+**Future work:** WiFiManager + NVS would let you change the network and server URL
+from a captive portal instead of reflashing, and `allowedUIDs` could be served from
+the backend so RFID cards are managed from the dashboard (it would need a cached
+copy on the device to keep offline operation working).
 
 ---
 

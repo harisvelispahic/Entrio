@@ -8,16 +8,13 @@
 // =====================================================
 // WIFI + BACKEND CONFIG
 // =====================================================
-// const char* WIFI_SSID     = "MojaTV_Full_212841";
-// const char* WIFI_PASSWORD = "PZOIMGFUTBPZOIMGFUTB";
-
-const char* WIFI_SSID     = "A55 korisnika Haris";
-const char* WIFI_PASSWORD = "12345678iot";
-
-// const char* SERVER_BASE_URL = "http://192.168.1.8:5263";
-// const char* SERVER_BASE_URL = "http://10.75.136.200:5263";
-const char* SERVER_BASE_URL = "http://10.38.150.200:5263";
-const char* DEVICE_KEY = "IoT-ESP32-KEY-2025-9f2a7c4e8d1b";
+// WIFI_SSID, WIFI_PASSWORD, SERVER_BASE_URL and DEVICE_KEY now live in
+// secrets.h, which is gitignored so credentials stay out of the repository.
+//
+// FIRST-TIME SETUP: copy secrets.example.h to secrets.h (in this same folder)
+// and fill in your values. The Arduino IDE compiles every file in the sketch
+// folder, so no further configuration is needed.
+#include "secrets.h"
 
 // =====================================================
 // RFID CONFIG

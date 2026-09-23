@@ -21,11 +21,16 @@ public class DeviceEntity
 
     private DeviceEntity() { }
 
-    public DeviceEntity(string name, string deviceKeyHash)
+    /// <param name="id">
+    /// Optional fixed identity. Seeding passes an explicit id so the device row
+    /// matches the GUID the ESP32 firmware posts in its status payload.
+    /// </param>
+    public DeviceEntity(string name, string deviceKeyHash, string deviceKeySalt, Guid? id = null)
     {
-        Id = Guid.NewGuid();
+        Id = id ?? Guid.NewGuid();
         Name = name;
         DeviceKeyHash = deviceKeyHash;
+        DeviceKeySalt = deviceKeySalt;
         LastSeenAtUtc = DateTime.UtcNow;
     }
 

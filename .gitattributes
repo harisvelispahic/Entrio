@@ -1,0 +1,10 @@
+# Keep shell scripts and Docker entrypoints LF, even on Windows checkouts.
+# A CRLF line ending in a script with a #! line makes Linux fail with
+# "bad interpreter: /bin/sh^M".
+*.sh            text eol=lf
+*.mjs           text eol=lf
+Dockerfile      text eol=lf
+*.Dockerfile    text eol=lf
+docker-compose*.yml text eol=lf
+nginx.conf      text eol=lf
+*.conf          text eol=lf

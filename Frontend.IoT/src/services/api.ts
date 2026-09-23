@@ -1,5 +1,20 @@
 import { API_BASE_URL } from '@/config/api';
 
+/**
+ * Called whenever the API rejects a request with 401.
+ *
+ * Tokens are now persisted across reloads, so a token that has simply expired
+ * (they last 12h) would otherwise survive a refresh and leave every page
+ * erroring with no way back to the login screen. AuthContext registers its
+ * logout here so a single 401 anywhere clears the stored token and the route
+ * guard takes the user to /login.
+ */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 class ApiService {
   private getToken(): string | null {
     // Token is stored in AuthContext, but we need it for API calls
@@ -29,6 +44,10 @@ class ApiService {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        onUnauthorized?.();
+      }
+
       const errorData = await response.json().catch(() => ({}));
       throw new ApiError(
         response.status,

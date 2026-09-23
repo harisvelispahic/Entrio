@@ -1,0 +1,142 @@
+# =============================================================================
+# Entrio — full local stack.
+#
+#   docker compose up -d --build              API + web + database
+#   docker compose --profile simulator up -d  ... plus a stand-in for the ESP32
+#
+# All values come from the gitignored repo-root .env (see .env.example).
+# Every image is pinned to a concrete patch tag — never :latest.
+# =============================================================================
+
+name: entrio
+
+services:
+  # ---------------------------------------------------------------------------
+  entrio-sqlserver:
+    # Pinned: CU14+ is required for the /opt/mssql-tools18 path used below.
+    image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+    container_name: entrio-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      # WARNING: SQL Server only applies this on FIRST creation of the volume
+      # below. Changing it later needs "docker compose down -v", which deletes
+      # the database.
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+      MSSQL_PID: Developer
+    ports:
+      # 1437 on the host: 1433 is a local instance, 1434 SQL Browser,
+      # 1435 travle and 1436 Detailly are already taken.
+      - "1437:1433"
+    volumes:
+      - entrio-sqldata:/var/opt/mssql
+    healthcheck:
+      # sqlcmd ships inside this image, so nothing extra is installed.
+      # -C trusts the self-signed certificate the container generates.
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  entrio-api:
+    build:
+      context: ./Backend.IoT
+      dockerfile: Dockerfile
+    image: entrio-api:dev
+    container_name: entrio-api
+    depends_on:
+      entrio-sqlserver:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # These Section__Key names are the SAME mapping expressed by the alias
+      # table in IoT.API/Configuration/EnvironmentConfiguration.cs, which does
+      # the equivalent translation for local (non-Docker) runs.
+      #   JWT_KEY      -> Jwt__Key
+      #   DEVICE_KEY   -> Seed__DeviceKey
+      #   OWNER_EMAIL  -> Seed__OwnerEmail
+      #   OWNER_PIN    -> Seed__OwnerPin
+      Jwt__Key: ${JWT_KEY:?set JWT_KEY in .env}
+      Seed__DeviceKey: ${DEVICE_KEY:?set DEVICE_KEY in .env}
+      Seed__OwnerEmail: ${OWNER_EMAIL:?set OWNER_EMAIL in .env}
+      Seed__OwnerPin: ${OWNER_PIN:?set OWNER_PIN in .env}
+      # Host-dependent, so deliberately NOT aliased: inside the network the
+      # server is the compose service name, while .env's bottom section holds
+      # the localhost,1437 form for local runs.
+      ConnectionStrings__DefaultConnection: >-
+        Server=entrio-sqlserver,1433;Database=GarageIoT;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true
+    ports:
+      # Fixed on purpose. 5263 is hardcoded in the ESP32 firmware
+      # (SERVER_BASE_URL) and is the origin the browser calls, so it must not
+      # drift. Changing it means reflashing the device.
+      - "5263:8080"
+    volumes:
+      - entrio-logs:/app/logs
+    healthcheck:
+      # A plain TCP port probe using bash's /dev/tcp — no curl installed and no
+      # /health endpoint added. The API migrates and seeds BEFORE app.Run(), so
+      # an open port also proves the database is ready and populated.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ---------------------------------------------------------------------------
+  entrio-web:
+    build:
+      context: ./Frontend.IoT
+      dockerfile: Dockerfile
+    image: entrio-web:dev
+    container_name: entrio-web
+    depends_on:
+      entrio-api:
+        condition: service_healthy
+    environment:
+      # Read by /docker-entrypoint.d/40-env.sh and written into env.js at start.
+      # This is a HOST address, not http://entrio-api:8080, because the fetch
+      # runs in the browser on Windows — outside this Docker network, where the
+      # service name does not resolve.
+      API_BASE_URL: ${API_BASE_URL:?set API_BASE_URL in .env}
+    ports:
+      # 4300 keeps the Vite dev server on 8080 free, so both can run at once.
+      # Both origins are listed in appsettings.json under Cors:AllowedOrigins.
+      - "4300:80"
+    healthcheck:
+      # busybox wget is built into nginx:alpine.
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1/env.js || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # Stand-in for the (disassembled) ESP32. Opt-in:
+  #     docker compose --profile simulator up -d
+  # Speaks exactly the four X-Device-Key endpoints the firmware uses.
+  entrio-device-sim:
+    image: node:22.22.0-alpine3.22
+    container_name: entrio-device-sim
+    profiles: ["simulator"]
+    depends_on:
+      entrio-api:
+        condition: service_healthy
+    environment:
+      # Container-to-container, so the service name is correct here — unlike
+      # entrio-web's API_BASE_URL, this code runs inside the Docker network.
+      SERVER_BASE_URL: http://entrio-api:8080
+      DEVICE_KEY: ${DEVICE_KEY:?set DEVICE_KEY in .env}
+    volumes:
+      - ./tools/device-simulator:/sim:ro
+    working_dir: /sim
+    command: ["node", "simulator.mjs"]
+    restart: unless-stopped
+
+volumes:
+  entrio-sqldata:
+  entrio-logs:

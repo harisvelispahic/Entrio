@@ -426,3 +426,15 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ── Entrio: secrets and generated config ──────────────────────────────────────
+# The repo-root .env is the single source of infrastructure config (see .env.example).
+# (*.env above already matches ".env"; this is the explicit, obvious rule.)
+.env
+!.env.example
+
+# ESP32 WiFi credentials + device key (see Esp32.IoT/secrets.example.h)
+Esp32.IoT/secrets.h
+
+# Generated at start from .env / container environment — never committed
+Frontend.IoT/public/env.js

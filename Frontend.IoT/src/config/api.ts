@@ -1,6 +1,9 @@
 // API Configuration
-// Change this to your ASP.NET backend URL
-export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5263/api";
+// Resolved at RUNTIME from window.__env (see src/config/env.ts and public/env.js),
+// not baked in at build time, so one built image can target any backend.
+import { env } from "@/config/env";
+
+export const API_BASE_URL = env.apiBaseUrl;
 
 // Polling interval for door status (in milliseconds)
 export const DOOR_STATUS_POLL_INTERVAL = 3000;

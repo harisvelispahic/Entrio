@@ -18,6 +18,14 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Entrio" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <!-- Runtime configuration. MUST load before the app bundle: it defines
+         window.__env, which src/config/api.ts reads at module-evaluation time.
+         Kept in <head>, ahead of the bundle tag Vite injects here at build time,
+         so the ordering does not depend on module scripts being deferred.
+         Not part of the build — generated at start-up (npm "config" locally,
+         /docker-entrypoint.d/40-env.sh in the container), which is what lets
+         one built image point at different API URLs. -->
+    <script src="/env.js"></script>
   </head>
 
   <body>
