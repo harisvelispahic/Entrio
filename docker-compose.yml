@@ -57,14 +57,12 @@ services:
       # These Section__Key names are the SAME mapping expressed by the alias
       # table in IoT.API/Configuration/EnvironmentConfiguration.cs, which does
       # the equivalent translation for local (non-Docker) runs.
-      #   JWT_KEY      -> Jwt__Key
-      #   DEVICE_KEY   -> Seed__DeviceKey
-      #   OWNER_EMAIL  -> Seed__OwnerEmail
-      #   OWNER_PIN    -> Seed__OwnerPin
+      #   JWT_KEY    -> Jwt__Key
+      #   DEVICE_KEY -> Device__Key
+      # The login account is not here: it is a public demo credential defined in
+      # IoT.API/Configuration/DatabaseSeeder.cs.
       Jwt__Key: ${JWT_KEY:?set JWT_KEY in .env}
-      Seed__DeviceKey: ${DEVICE_KEY:?set DEVICE_KEY in .env}
-      Seed__OwnerEmail: ${OWNER_EMAIL:?set OWNER_EMAIL in .env}
-      Seed__OwnerPin: ${OWNER_PIN:?set OWNER_PIN in .env}
+      Device__Key: ${DEVICE_KEY:?set DEVICE_KEY in .env}
       # Host-dependent, so deliberately NOT aliased: inside the network the
       # server is the compose service name, while .env's bottom section holds
       # the localhost,1437 form for local runs.

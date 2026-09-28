@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace IoT.Domain.Entities.Devices;
+﻿namespace IoT.Domain.Entities.Devices;
 
 public class ScheduleEntity
 {
@@ -22,13 +20,13 @@ public class ScheduleEntity
         Guid deviceId,
         DeviceCommandType commandType,
         int? targetPercentage,
-        DateTime executeAtUtcUtc)
+        DateTime executeAtUtc)
     {
         Id = Guid.NewGuid();
         DeviceId = deviceId;
         CommandType = commandType;
         TargetPercentage = targetPercentage;
-        ExecuteAtUtc = executeAtUtcUtc;
+        ExecuteAtUtc = executeAtUtc;
         IsActive = true;
         WasTriggered = false;
     }

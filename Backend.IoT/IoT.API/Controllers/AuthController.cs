@@ -1,5 +1,4 @@
-﻿using IoT.Application.Identity;
-using Microsoft.AspNetCore.Authorization;
+using IoT.Application.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IoT.API.Controllers;
@@ -8,24 +7,41 @@ namespace IoT.API.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly LoginService _loginService;
+    private readonly AuthService _auth;
 
-    public AuthController(LoginService loginService)
+    public AuthController(AuthService auth)
     {
-        _loginService = loginService;
+        _auth = auth;
     }
 
+    /// <summary>Exchanges email + password for an access/refresh token pair.</summary>
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
-    {
-        var token = await _loginService.LoginAsync(request);
-        return Ok(new { token });
-    }
+    public async Task<ActionResult<AuthResponse>> Login(
+        [FromBody] LoginRequest request,
+        CancellationToken ct)
+        => Ok(await _auth.LoginAsync(request, ct));
 
-    //[Authorize]
-    //[HttpGet("auth-test")]
-    //public IActionResult AuthTest()
-    //{
-    //    return Ok("AUTH OK");
-    //}
+    /// <summary>
+    /// Exchanges a valid refresh token for a new pair, revoking the presented one.
+    /// Anonymous by design: the caller's access token has expired, so the refresh token
+    /// is what authenticates this request.
+    /// </summary>
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthResponse>> Refresh(
+        [FromBody] RefreshRequest request,
+        CancellationToken ct)
+        => Ok(await _auth.RefreshAsync(request, ct));
+
+    /// <summary>
+    /// Revokes every refresh token for the account. Always returns 204, including for an
+    /// unknown token — a client trying to log out should never be told "no".
+    /// </summary>
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(
+        [FromBody] RefreshRequest request,
+        CancellationToken ct)
+    {
+        await _auth.LogoutAsync(request, ct);
+        return NoContent();
+    }
 }

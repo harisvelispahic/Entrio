@@ -30,6 +30,12 @@ function findEnvFile(startDir) {
 
 // Only PUBLIC values. Everything listed here is served to every visitor's browser.
 const PUBLIC_KEYS = ["API_BASE_URL"];
+const OPTIONAL_PUBLIC_KEYS = ["DEMO_MODE"];
+
+// `npm run dev:demo` passes --demo so demo mode can be tried locally without editing
+// .env. Done as a flag rather than an inline env var because `DEMO_MODE=true npm run
+// dev` is Bash-only syntax and fails in PowerShell.
+const forceDemo = process.argv.includes("--demo");
 
 const envFile = findEnvFile(frontendRoot);
 
@@ -52,7 +58,15 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const values = Object.fromEntries(PUBLIC_KEYS.map((key) => [key, process.env[key]]));
+const values = Object.fromEntries(
+  [...PUBLIC_KEYS, ...OPTIONAL_PUBLIC_KEYS]
+    .filter((key) => process.env[key] !== undefined)
+    .map((key) => [key, process.env[key]]),
+);
+
+if (forceDemo) {
+  values.DEMO_MODE = "true";
+}
 
 const contents =
   "// GENERATED FILE — do not edit and do not commit.\n" +
@@ -62,4 +76,4 @@ const contents =
 const outputPath = join(frontendRoot, "public", "env.js");
 writeFileSync(outputPath, contents, "utf8");
 
-console.log(`[generate-env] Wrote public/env.js (${PUBLIC_KEYS.join(", ")}).`);
+console.log(`[generate-env] Wrote public/env.js (${Object.keys(values).join(", ")}).`);

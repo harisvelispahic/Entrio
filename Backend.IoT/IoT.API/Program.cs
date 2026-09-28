@@ -1,7 +1,9 @@
 using IoT.API.Configuration;
+using IoT.API.Middleware;
 using IoT.Application.Common;
 using IoT.Application.Devices;
 using IoT.Application.Devices.Events;
+using IoT.Application.Devices.Services;
 using IoT.Application.Identity;
 using IoT.Infrastructure.Background;
 using IoT.Infrastructure.Database;
@@ -29,8 +31,24 @@ var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException(
         "No JWT signing key. Set JWT_KEY in the repo-root .env file.");
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Stamp a "Z" on every timestamp. Without this, values read back from SQL carry
+        // DateTimeKind.Unspecified, serialize without a suffix, and the browser parses
+        // them as LOCAL time -- every event displayed hours off. See UtcDateTimeConverter.
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+        options.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeConverter());
+    });
+
 builder.Services.AddEndpointsApiExplorer();
+
+// Exception handlers run as a chain in registration order: the domain handler claims the
+// expected EntrioException types, and the global one catches everything else. Registered
+// before AddControllers' pipeline via UseExceptionHandler below.
+builder.Services.AddExceptionHandler<EntrioExceptionHandler>();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 // Allowed origins are application behaviour, not infrastructure, so they live in
 // appsettings.json: 8080 is the Vite dev server, 4300 is the nginx container.
@@ -110,9 +128,9 @@ builder.Services.AddAuthentication("Bearer")
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddScoped<IPinHasher, PinHasher>();
-builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
-builder.Services.AddScoped<LoginService>();
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IDeviceAuthenticator, DeviceAuthenticator>();
 builder.Services.AddScoped<AutoCloseService>();
 
@@ -122,7 +140,10 @@ var app = builder.Build();
 
 // Migrate and seed before listening, so an open port also means the database is ready.
 await DatabaseStartup.MigrateAsync(app);
-await DatabaseStartup.SeedAsync(app);
+await DatabaseSeeder.SeedAsync(app);
+
+// Must come first in the pipeline so it can catch anything thrown further down.
+app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DoorVisualization } from "@/components/door/DoorVisualization";
 import { DoorControls } from "@/components/door/DoorControls";
+import { AutoCloseCard } from "@/components/door/AutoCloseCard";
 import { useDoorStatus } from "@/hooks/useDoorStatus";
 import { Activity, Clock, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -51,7 +52,10 @@ export default function Dashboard() {
         </Card>
 
         {/* Controls */}
-        <DoorControls onCommand={sendCommand} isLoading={isLoading} activeCommand={activeCommand} />
+        <div className="space-y-6">
+          <DoorControls onCommand={sendCommand} isLoading={isLoading} activeCommand={activeCommand} />
+          <AutoCloseCard />
+        </div>
       </div>
 
       {/* Quick stats */}
@@ -113,10 +117,22 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Connection</p>
-                <p className="text-2xl font-bold text-success">Online</p>
+                {/* Derived from the polling result. This used to be hardcoded to
+                    "Online" and stayed green even while every request was failing. */}
+                <p className={`text-2xl font-bold ${error ? "text-destructive" : "text-success"}`}>
+                  {error ? "Offline" : "Online"}
+                </p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
-                <div className="h-3 w-3 rounded-full bg-success animate-pulse" />
+              <div
+                className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                  error ? "bg-destructive/10" : "bg-success/10"
+                }`}
+              >
+                <div
+                  className={`h-3 w-3 rounded-full ${
+                    error ? "bg-destructive" : "bg-success animate-pulse"
+                  }`}
+                />
               </div>
             </div>
           </CardContent>

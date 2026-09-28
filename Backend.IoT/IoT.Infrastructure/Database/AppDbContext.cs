@@ -14,6 +14,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
     // Identity
     public DbSet<OwnerAccountEntity> OwnerAccounts => Set<OwnerAccountEntity>();
+    public DbSet<RefreshTokenEntity> RefreshTokens => Set<RefreshTokenEntity>();
 
     // Devices
     public DbSet<DeviceEntity> Devices => Set<DeviceEntity>();

@@ -1,32 +1,22 @@
-import { api } from './api';
-import { DoorStatus, CommandRequest, DoorCommand } from '@/config/api';
+import { api } from "./api";
+import { CommandRequest, DoorCommand, DoorStatus } from "@/config/api";
+import { env } from "@/config/env";
+import { demoBackend } from "./demoBackend";
 
 export const doorService = {
-  async getStatus(token: string): Promise<DoorStatus> {
-    return api.get<DoorStatus>('/door/status', token);
+  getStatus(): Promise<DoorStatus> {
+    if (env.demoMode) return Promise.resolve(demoBackend.getDoorStatus());
+
+    return api.get<DoorStatus>("/door/status");
   },
 
-  async sendCommand(command: DoorCommand, percentage: number | null, token: string): Promise<void> {
-    const request: CommandRequest = {
-      command,
-      percentage,
-    };
-    return api.post('/door/command', request, token);
-  },
+  sendCommand(command: DoorCommand, percentage: number | null): Promise<void> {
+    if (env.demoMode) {
+      demoBackend.sendCommand(command, percentage);
+      return Promise.resolve();
+    }
 
-  async open(token: string): Promise<void> {
-    return this.sendCommand(DoorCommand.OPEN, null, token);
-  },
-
-  async close(token: string): Promise<void> {
-    return this.sendCommand(DoorCommand.CLOSE, null, token);
-  },
-
-  async stop(token: string): Promise<void> {
-    return this.sendCommand(DoorCommand.STOP, null, token);
-  },
-
-  async vent(percentage: number, token: string): Promise<void> {
-    return this.sendCommand(DoorCommand.VENT, percentage, token);
+    const request: CommandRequest = { command, percentage };
+    return api.post("/door/command", request);
   },
 };

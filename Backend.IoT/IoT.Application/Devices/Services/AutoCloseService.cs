@@ -1,7 +1,14 @@
-﻿using IoT.Application.Common;
+using IoT.Application.Common;
 using IoT.Domain.Entities.Devices;
 using Microsoft.EntityFrameworkCore;
 
+namespace IoT.Application.Devices.Services;
+
+/// <summary>
+/// Queues an automatic close after the door is opened, when the feature is enabled for
+/// the device. Implemented as a schedule rather than a timer so it survives a restart:
+/// ScheduleWorker picks it up the same way it picks up user-created schedules.
+/// </summary>
 public class AutoCloseService
 {
     private readonly IAppDbContext _db;
@@ -11,39 +18,29 @@ public class AutoCloseService
         _db = db;
     }
 
-    public async Task ScheduleAutoCloseAsync(Guid deviceId)
+    public async Task ScheduleAutoCloseAsync(Guid deviceId, CancellationToken ct = default)
     {
-        // load settings
         var settings = await _db.AutoCloseSettings
-            .FirstOrDefaultAsync(x => x.DeviceId == deviceId);
+            .FirstOrDefaultAsync(x => x.DeviceId == deviceId, ct);
 
         if (settings is null || !settings.Enabled)
             return;
 
-        // ❗ 1) deactivate all existing future auto-close schedules
-        var existing = await _db.Schedules
-            .Where(s =>
-                s.DeviceId == deviceId &&
-                s.IsActive &&
-                !s.WasTriggered)
-            .ToListAsync();
+        // Supersede any pending auto-close, so re-opening the door restarts the countdown
+        // instead of leaving an older, earlier close still armed.
+        var pending = await _db.Schedules
+            .Where(s => s.DeviceId == deviceId && s.IsActive && !s.WasTriggered)
+            .ToListAsync(ct);
 
-        foreach (var s in existing)
-            s.Deactivate();
+        foreach (var schedule in pending)
+            schedule.Deactivate();
 
-        // ❗ 2) calculate new execution time
-        var executeAt = DateTime.UtcNow.AddSeconds(settings.AfterSeconds);
-
-        var schedule = new ScheduleEntity(
+        _db.Schedules.Add(new ScheduleEntity(
             deviceId: deviceId,
             commandType: DeviceCommandType.Close,
-            targetPercentage: null,        // full close
-            executeAtUtcUtc: executeAt
-        );
+            targetPercentage: null,
+            executeAtUtc: DateTime.UtcNow.AddSeconds(settings.AfterSeconds)));
 
-        _db.Schedules.Add(schedule);
-
-        await _db.SaveChangesAsync(default);
+        await _db.SaveChangesAsync(ct);
     }
-
 }

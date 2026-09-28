@@ -1,4 +1,5 @@
 ﻿using IoT.Application.Common;
+using IoT.Application.Common.Exceptions;
 using IoT.Application.Devices.Commands.Create;
 using IoT.Domain.Entities.Devices;
 using MediatR;
@@ -36,19 +37,12 @@ public class DoorController : ControllerBase
         CancellationToken ct)
     {
 
-        if (request.Command == DeviceCommandType.Vent)
-        {
-            if (request.Percentage is null or < 1 or > 99)
-                return BadRequest("Vent requires percentage 1–99.");
-        }
+        if (request.Command == DeviceCommandType.Vent && request.Percentage is null or < 1 or > 99)
+            throw new BusinessRuleException("Vent requires a percentage between 1 and 99.");
 
-        // ✅ SINGLE DEVICE SYSTEM
-        var device = await _db.Devices
-            .AsNoTracking()
-            .FirstOrDefaultAsync(ct);
-
-        if (device == null)
-            return Problem("No device registered in the system.");
+        // Single-device system: there is exactly one garage door.
+        var device = await _db.Devices.AsNoTracking().FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException("No device is registered in the system.");
 
         await _mediator.Send(
             new CreateDeviceCommandCommand(
@@ -63,23 +57,21 @@ public class DoorController : ControllerBase
     [HttpGet("status")]
     public async Task<IActionResult> GetStatus(CancellationToken ct)
     {
-        // 1) For now just take the first device (later you can pass deviceId from frontend)
-        var device = await _db.Devices.FirstAsync(ct);
+        // FirstAsync used to throw here when no device existed, surfacing as a raw 500.
+        var device = await _db.Devices.FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException("No device is registered in the system.");
 
-        // 2) Get status row for this device
         var status = await _db.DeviceStatuses
             .SingleOrDefaultAsync(s => s.DeviceId == device.Id, ct);
 
-        // 3) If no status exists yet, return a safe default
-        if (status == null)
+        // The device may not have reported yet; a closed door is the safe default.
+        if (status is null)
         {
             status = new DeviceStatusEntity(device.Id);
             _db.DeviceStatuses.Add(status);
             await _db.SaveChangesAsync(ct);
         }
 
-
-        // 4) Map entity -> DTO shape expected by frontend
         return Ok(new
         {
             position = status.PositionPercent,

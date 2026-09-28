@@ -89,6 +89,9 @@ async function reportEvent(type, source = "Remote") {
 }
 
 /** Advances the door one tick toward its target, exactly as the stepper would. */
+/** Set by advance() on the tick travel completes, consumed by tick() to raise the event. */
+let justArrived = null;
+
 function advance() {
   if (state.target === null) return false;
 
@@ -96,7 +99,11 @@ function advance() {
     state.door =
       state.position === 0 ? DoorState.Closed
       : state.position === 100 ? DoorState.Open
+      // A partial position is a completed vent, which the firmware also reports as
+      // DoorOpened (it leaves the door off its closed stop).
       : DoorState.Stopped;
+
+    justArrived = state.door;
     state.target = null;
     return true;
   }
@@ -148,16 +155,26 @@ async function tick() {
     if (applyCommand(pending)) {
       await call("POST", `/api/device/commands/${id}/ack`, "");
       console.log(`[cmd] ${id} acknowledged`);
-
-      // Report the door event the firmware would raise for this command.
-      if (type === Command.OPEN) await reportEvent("DoorOpened", "Remote");
-      if (type === Command.CLOSE) await reportEvent("DoorClosed", "Remote");
     }
   }
 
   if (advance()) {
     await reportStatus();
     console.log(`[state] position=${state.position}% door=${state.door}`);
+
+    // Raise the door event only once travel has FINISHED, which is what the firmware
+    // does (Esp32.IoT.ino runMotor(), at `stepper.distanceToGo() == 0`). Reporting it
+    // on acknowledgement instead started the auto-close countdown at the beginning of
+    // the open, so a 5s delay fired while the door was still moving.
+    if (justArrived !== null) {
+      if (justArrived === DoorState.Open || justArrived === DoorState.Stopped) {
+        await reportEvent("DoorOpened", "Remote");
+      } else if (justArrived === DoorState.Closed) {
+        await reportEvent("DoorClosed", "Remote");
+      }
+
+      justArrived = null;
+    }
   }
 }
 

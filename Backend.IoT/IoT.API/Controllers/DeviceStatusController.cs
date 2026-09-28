@@ -1,6 +1,6 @@
-﻿using IoT.Application.Common;
+﻿using IoT.API.Security;
+using IoT.Application.Common;
 using IoT.Domain.Entities.Devices;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +8,6 @@ namespace IoT.API.Controllers;
 
 [ApiController]
 [Route("api/device/status")]
-[AllowAnonymous]   // later we’ll secure it with DeviceAuthorize
 public class DeviceStatusController : ControllerBase
 {
     private readonly IAppDbContext _db;
@@ -18,6 +17,7 @@ public class DeviceStatusController : ControllerBase
         _db = db;
     }
 
+    [DeviceAuthorize]
     [HttpPost]
     public async Task<IActionResult> UpdateStatus(
         [FromBody] UpdateStatusRequest request,

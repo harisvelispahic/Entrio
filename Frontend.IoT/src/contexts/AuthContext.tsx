@@ -1,114 +1,92 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import { authService, LoginCredentials } from '@/services/authService';
-import { setUnauthorizedHandler } from '@/services/api';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { authService, LoginCredentials } from "@/services/authService";
+import { setSessionExpiredHandler } from "@/services/api";
+import { readTokens } from "@/services/tokenStorage";
+import { env } from "@/config/env";
 
 interface AuthContextType {
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
   login: (credentials: LoginCredentials) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_STORAGE_KEY = 'entrio.token';
-
-/**
- * Reads the stored token. Wrapped in try/catch because localStorage throws in
- * private-browsing modes and when site data is blocked; a failure there must
- * degrade to "not logged in", never crash the app on boot.
- */
-function readStoredToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredToken(token: string | null): void {
-  try {
-    if (token === null) {
-      localStorage.removeItem(TOKEN_STORAGE_KEY);
-    } else {
-      localStorage.setItem(TOKEN_STORAGE_KEY, token);
-    }
-  } catch {
-    // Storage unavailable: the token still works for this tab, it just will
-    // not survive a refresh. Not worth failing the login over.
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Initialised from storage so a page refresh does not silently log you out.
-  // Without this the token was React state only, and every data hook's
-  // `if (!token) return` guard turned the whole app into a no-op after reload.
-  const [token, setTokenState] = useState<string | null>(readStoredToken);
-
-  const setToken = useCallback((next: string | null) => {
-    writeStoredToken(next);
-    setTokenState(next);
-  }, []);
+  // Seeded from storage so a refresh does not log the user out. The tokens themselves
+  // live in tokenStorage and are read by the API layer; this only tracks whether a
+  // session exists, so components never handle raw tokens.
+  // In demo mode there is no API to authenticate against, so the visitor is treated as
+  // signed in -- otherwise the route guard would trap them on a login form that can
+  // never succeed. This is driven by runtime config, so it cannot affect a real
+  // deployment.
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => env.demoMode || readTokens() !== null,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const login = useCallback(async (credentials: LoginCredentials): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const response = await authService.login(credentials);
-      setToken(response.token);
+      if (!env.demoMode) {
+        await authService.login(credentials);
+      }
+
+      setIsAuthenticated(true);
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed';
-      setError(message);
+      setError(err instanceof Error ? err.message : "Login failed");
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [setToken]);
+  }, []);
 
-  const logout = useCallback(() => {
-    setToken(null);
-    setError(null);
-  }, [setToken]);
+  const logout = useCallback(async () => {
+    if (!env.demoMode) {
+      await authService.logout();
+    }
 
-  const clearError = useCallback(() => {
+    setIsAuthenticated(false);
     setError(null);
   }, []);
 
-  // Any 401 from any endpoint clears the stored token, so an expired token
-  // cannot strand the user on a page that only ever errors.
+  const clearError = useCallback(() => setError(null), []);
+
+  // The API layer refreshes expired access tokens on its own; it only calls back here
+  // when the session cannot be saved, so this fires once, at the real end of a session.
   useEffect(() => {
-    setUnauthorizedHandler(logout);
-    return () => setUnauthorizedHandler(null);
-  }, [logout]);
+    setSessionExpiredHandler(() => setIsAuthenticated(false));
+    return () => setSessionExpiredHandler(null);
+  }, []);
 
-  const value = useMemo(() => ({
-    token,
-    isAuthenticated: !!token,
-    isLoading,
-    error,
-    login,
-    logout,
-    clearError,
-  }), [token, isLoading, error, login, logout, clearError]);
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({ isAuthenticated, isLoading, error, login, logout, clearError }),
+    [isAuthenticated, isLoading, error, login, logout, clearError],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
+
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
+
   return context;
 }

@@ -32,11 +32,6 @@ public class AnalyticsController : ControllerBase
         // ============================
         // 1) Opens per day
         // ============================
-        var last7Days = Enumerable.Range(0, 7)
-            .Select(i => DateTime.UtcNow.Date.AddDays(-i))
-            .OrderBy(d => d)
-            .ToList();
-
         var today = DateTime.UtcNow.Date;
 
         // shift so Monday is start

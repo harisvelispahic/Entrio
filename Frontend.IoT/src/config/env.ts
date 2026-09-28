@@ -44,7 +44,29 @@ function required(name: string): string {
   return value;
 }
 
+/** Reads an optional boolean flag. Absent or unsubstituted means false. */
+function optionalFlag(name: string): boolean {
+  const value = window.__env?.[name];
+
+  if (!value || value.startsWith("${")) {
+    return false;
+  }
+
+  return value.toLowerCase() === "true";
+}
+
 export const env = {
   /** Base URL of the API, including the /api prefix. Must be reachable from the BROWSER. */
   apiBaseUrl: required("API_BASE_URL"),
+
+  /**
+   * Runs the app against an in-memory simulation instead of a real API.
+   *
+   * Exists for the public Vercel deployment, which has no backend: without it a
+   * visitor would meet a login form that can never succeed. Set to true ONLY there.
+   * Because it is runtime config, it cannot leak into a local or Docker run, and the
+   * UI states plainly that the data is simulated -- unlike the silent mock-data
+   * fallback this replaces, which was indistinguishable from real data.
+   */
+  demoMode: optionalFlag("DEMO_MODE"),
 };

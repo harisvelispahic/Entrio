@@ -25,8 +25,10 @@ public sealed class CreateDeviceCommandCommandHandler
                 c.Status == DeviceCommandStatus.Pending)
             .ToListAsync(ct);
 
+        // A new command supersedes anything still queued, so the device never acts on a
+        // stale instruction it never got around to polling.
         foreach (var cmd in pending)
-            cmd.Status = DeviceCommandStatus.Cancelled;
+            cmd.Cancel();
 
         var newCommand = new DeviceCommandEntity(
             request.DeviceId,

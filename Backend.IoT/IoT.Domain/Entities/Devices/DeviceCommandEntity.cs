@@ -8,7 +8,7 @@ public class DeviceCommandEntity
     public DeviceCommandType CommandType { get; private set; }
     public int? TargetPercentage { get; private set; }
 
-    public DeviceCommandStatus Status { get; /* private */ set; }
+    public DeviceCommandStatus Status { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime? AcknowledgedAtUtc { get; private set; }
     public bool SuppressAutoClose { get; private set; }

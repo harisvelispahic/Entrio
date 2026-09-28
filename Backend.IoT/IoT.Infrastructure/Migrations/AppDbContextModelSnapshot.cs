@@ -204,22 +204,64 @@ namespace IoT.Infrastructure.Migrations
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("PinHash")
+                    b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("PinSalt")
+                    b.Property<string>("PasswordSalt")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("OwnerAccounts");
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.ToTable("OwnerAccounts", (string)null);
+                });
+
+            modelBuilder.Entity("IoT.Domain.Entities.Identity.RefreshTokenEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("OwnerAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerAccountId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("RefreshTokens", (string)null);
                 });
 
             modelBuilder.Entity("IoT.Domain.Entities.Devices.AutoCloseSettingsEntity", b =>
@@ -263,6 +305,15 @@ namespace IoT.Infrastructure.Migrations
                     b.HasOne("IoT.Domain.Entities.Devices.DeviceEntity", null)
                         .WithMany("Schedules")
                         .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("IoT.Domain.Entities.Identity.RefreshTokenEntity", b =>
+                {
+                    b.HasOne("IoT.Domain.Entities.Identity.OwnerAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerAccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

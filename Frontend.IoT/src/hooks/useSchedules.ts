@@ -1,96 +1,88 @@
-import { useState, useEffect, useCallback } from 'react';
-import { scheduleService, CreateScheduleRequest } from '@/services/scheduleService';
-import { Schedule, DoorCommand } from '@/config/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { useCallback, useEffect, useState } from "react";
+import { scheduleService } from "@/services/scheduleService";
+import { DoorCommand, Schedule } from "@/config/api";
+import { toast } from "@/hooks/use-toast";
+
+/** Chronological, soonest first. */
+function byExecuteAt(a: Schedule, b: Schedule): number {
+  return new Date(a.executeAtUtc).getTime() - new Date(b.executeAtUtc).getTime();
+}
 
 export function useSchedules() {
-  const { token } = useAuth();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSchedules = useCallback(async () => {
-    if (!token) return;
-
     setIsLoading(true);
+
     try {
-      const data = await scheduleService.getSchedules(token);
-      setSchedules(data);
+      const data = await scheduleService.getSchedules();
+      setSchedules([...data].sort(byExecuteAt));
+      setError(null);
     } catch (err) {
-      console.error('Failed to fetch schedules:', err);
+      setError(err instanceof Error ? err.message : "Failed to load schedules");
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchSchedules();
   }, [fetchSchedules]);
 
-  const createSchedule = useCallback(async (
-    command: DoorCommand,
-    scheduledAt: string,
-    percentage?: number
-  ) => {
-    if (!token) return;
+  const createSchedule = useCallback(
+    async (command: DoorCommand, executeAtUtc: string, percentage?: number) => {
+      setIsCreating(true);
 
-    setIsCreating(true);
-    try {
-      const request: CreateScheduleRequest = {
-        command,
-        scheduledAt,
-        percentage,
-      };
-      const newSchedule = await scheduleService.createSchedule(request, token);
-      setSchedules((prev) => [...prev, newSchedule].sort(
-        (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-      ));
-      toast({
-        title: 'Schedule Created',
-        description: 'Your schedule has been created successfully.',
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create schedule';
-      toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  }, [token]);
+      try {
+        const created = await scheduleService.createSchedule({ command, executeAtUtc, percentage });
+        setSchedules((prev) => [...prev, created].sort(byExecuteAt));
+
+        toast({
+          title: "Schedule Created",
+          description: "Your schedule has been created successfully.",
+        });
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: err instanceof Error ? err.message : "Failed to create schedule",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
+      }
+    },
+    [],
+  );
 
   const deleteSchedule = useCallback(async (id: string) => {
-    if (!token) return;
-
     setIsDeleting(id);
+
     try {
-      await scheduleService.deleteSchedule(id, token);
+      await scheduleService.deleteSchedule(id);
       setSchedules((prev) => prev.filter((s) => s.id !== id));
-      toast({
-        title: 'Schedule Deleted',
-        description: 'Your schedule has been deleted.',
-      });
+
+      toast({ title: "Schedule Deleted", description: "Your schedule has been deleted." });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete schedule';
       toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive',
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to delete schedule",
+        variant: "destructive",
       });
     } finally {
       setIsDeleting(null);
     }
-  }, [token]);
+  }, []);
 
   return {
     schedules,
     isLoading,
     isCreating,
     isDeleting,
+    error,
     createSchedule,
     deleteSchedule,
     refreshSchedules: fetchSchedules,

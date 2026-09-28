@@ -38,7 +38,12 @@ export function ScheduleForm({ onSubmit, isLoading }: ScheduleFormProps) {
   };
 
   const isVent = command === String(DoorCommand.VENT);
-  const minDateTime = new Date().toISOString().slice(0, 16);
+  // datetime-local works in LOCAL time, so the minimum must be local too. Using
+  // toISOString() here put the floor in the past by the UTC offset.
+  const now = new Date();
+  const minDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
 
   return (
     <Card className="industrial-border">

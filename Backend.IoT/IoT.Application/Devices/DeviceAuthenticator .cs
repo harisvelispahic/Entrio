@@ -8,9 +8,9 @@ namespace IoT.Application.Devices;
 public class DeviceAuthenticator : IDeviceAuthenticator
 {
     private readonly IAppDbContext _db;
-    private readonly IPinHasher _hasher;
+    private readonly IPasswordHasher _hasher;
 
-    public DeviceAuthenticator(IAppDbContext db, IPinHasher hasher)
+    public DeviceAuthenticator(IAppDbContext db, IPasswordHasher hasher)
     {
         _db = db;
         _hasher = hasher;

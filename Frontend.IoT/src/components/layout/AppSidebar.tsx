@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Calendar, BarChart3, DoorOpen, LogOut, Settings, Cog } from "lucide-react";
+import { LayoutDashboard, Calendar, BarChart3, DoorOpen, LogOut, Cog } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
@@ -68,22 +68,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/60">System</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <button className="flex items-center gap-3 px-3 py-2 w-full text-left rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all">
-                    <Settings className="h-5 w-5 text-sidebar-foreground/70" />
-                    <span>Settings</span>
-                  </button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

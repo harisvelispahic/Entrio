@@ -11,12 +11,16 @@ one, delete it rather than blanking it.
 
 | File | Holds | Tracked |
 |---|---|---|
-| `.env` (repo root) | Every secret and connection string, for both run modes | no |
+| `.env` (repo root) | Secrets and connection strings for both run modes | no |
 | `.env.example` | Template with placeholders and comments | yes |
 | `IoT.API/appsettings.json` | Behaviour only: logging, `Cors:AllowedOrigins`, JWT issuer/audience | yes |
 | `IoT.API/appsettings.Development.json` | The default `Logging` block only | yes |
 | `Frontend.IoT/public/env.js` | Generated at start-up; sets `window.__env` | no |
 | `Esp32.IoT/secrets.h` | WiFi credentials, server URL, device key | no |
+
+The login account is **not** a secret and is **not** in `.env` — it is seeded from
+`DatabaseSeeder.OwnerEmail`/`OwnerPassword` so anyone cloning the repo can log in.
+`Login.tsx` shows the same values; keep the two in sync.
 
 `.env` uses plain names (`JWT_KEY`); ASP.NET Core binds `Section__Key`
 (`Jwt__Key`). Two bridges express the **same** mapping:
@@ -55,27 +59,48 @@ go in `env.js`; the browser downloads it.
 - Fixed host ports: API **5263** (hardcoded in the firmware and a CORS origin),
   web **4300**, SQL **1437**. Do not change them casually.
 
+## Errors
+
+Throw `EntrioException` subclasses (`UnauthorizedException`, `NotFoundException`,
+`BusinessRuleException`) for anything a client should see. The handler chain in
+`IoT.API/Middleware` maps them to a status code and a consistent JSON body. Anything
+else becomes a logged 500 with a `traceId` and no internal detail — never return a
+raw exception. Do not use `return BadRequest(...)`/`Problem(...)` in new code.
+
 ## Things that are load-bearing
 
-- **Device GUID `0f8fad5b-d9cb-469f-a165-70867728950e`** is hardcoded in three
-  places: the firmware's status payload, `scheduleService.ts`, and
-  `DatabaseStartup.FirmwareDeviceId`. All three must agree or status posts and
-  schedules fail.
-- **Seeding is the only way rows get created.** There is no `HasData` anywhere;
-  a fresh database with no seed means no login and 401 on every device call.
-  `DatabaseStartup.SeedAsync` is idempotent and skips existing rows.
-- **`AutoCloseService` sits in the global namespace** (no `namespace`
-  declaration). Do not add a `using` for it.
+- **Device GUID `0f8fad5b-d9cb-469f-a165-70867728950e`** is hardcoded in the
+  firmware's status payload and `DatabaseSeeder.FirmwareDeviceId`. Both must agree
+  or status posts fail. The frontend no longer knows it.
+- **Seeding is the only way rows get created.** There is no `HasData` anywhere; a
+  fresh database with no seed means no login and 401 on every device call.
+  `DatabaseSeeder` is idempotent and skips existing rows.
+- **The auto-close condition in `CreateDeviceEventCommandHandler`** treats a last
+  command of `Close` as non-suppressing. That clause was added deliberately in
+  `62c035d` for RFID opens, which create no command row. Do not "simplify" it away.
+- **`import.meta.env` must never return for the API URL** — see the config section.
+- **Timestamps** rely on `UtcDateTimeConverter`; without it SQL returns
+  `DateTimeKind.Unspecified`, the `Z` is dropped, and the browser reads UTC as local.
+  The converter RELABELS Unspecified as UTC and never shifts it — do not reintroduce
+  `ToUniversalTime()` on the read path, which interprets Unspecified as server-local
+  and made the same request mean different instants in Docker (UTC) and locally (UTC+2).
+  The API never converts between zones; the browser owns all local-time work, which is
+  also what makes DST correct without a timezone database on the server.
+- **Device events are raised on travel COMPLETION**, not on command acknowledgement
+  (firmware: `runMotor()` at `distanceToGo() == 0`). The simulator must match, or
+  auto-close starts counting while the door is still moving.
 
-## Known gaps (not bugs introduced here)
+## Demo mode
+
+`env.demoMode` (runtime, from `env.js`) swaps the services onto `demoBackend`, an
+in-memory simulation, for the backendless Vercel deployment. It is opt-in, shows a
+permanent banner, and must never be enabled locally or in Docker. Never reintroduce a
+silent mock fallback on error — errors must surface as errors.
+
+## Known gaps
 
 - No test project exists in the solution.
-- `DeviceStatusController` is `[AllowAnonymous]` with a TODO to secure it —
-  anyone who knows the device GUID can post door status. The firmware already
-  sends `X-Device-Key`, so adding `[DeviceAuthorize]` would not break it.
-- `ProtectedRoute` was removed from every frontend route in `fd1fedc` for a
-  Vercel demo, but the backend still requires `[Authorize]`. Pages render and
-  then their API calls 401 until you log in.
+- `npm run build` does not typecheck. Run `npm run typecheck` before trusting a build.
 
 ## Working preferences
 

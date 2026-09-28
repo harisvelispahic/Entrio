@@ -1,28 +1,34 @@
-import { api, ApiError } from "./api";
-import { LoginResponse } from "@/config/api";
+import { api } from "./api";
+import { StoredTokens, readTokens, writeTokens } from "./tokenStorage";
 
 export interface LoginCredentials {
-  username: string;
+  email: string;
   password: string;
 }
 
 export const authService = {
-  async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    try {
-      const response = await api.post<LoginResponse>("/auth/login", {
-        Email: credentials.username,
-        Pin: credentials.password,
-      });
+  async login(credentials: LoginCredentials): Promise<StoredTokens> {
+    const tokens = await api.post<StoredTokens>("/auth/login", credentials);
+    writeTokens(tokens);
+    return tokens;
+  },
 
-      return response;
-    } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.status === 401) {
-          throw new Error("Invalid username or password");
-        }
-        throw new Error(error.message);
+  /**
+   * Revokes the refresh token server-side, then clears local storage.
+   * The server call is best-effort: if it fails the local session must still end,
+   * otherwise a network blip would leave the user stuck logged in.
+   */
+  async logout(): Promise<void> {
+    const tokens = readTokens();
+
+    if (tokens?.refreshToken) {
+      try {
+        await api.post("/auth/logout", { refreshToken: tokens.refreshToken });
+      } catch {
+        // ignored on purpose, see above
       }
-      throw new Error("Network error. Please check your connection.");
     }
+
+    writeTokens(null);
   },
 };

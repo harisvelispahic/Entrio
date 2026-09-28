@@ -1,39 +1,42 @@
 import { api } from "./api";
-import { Schedule, DoorCommand } from "@/config/api";
+import { DoorCommand, Schedule } from "@/config/api";
+import { env } from "@/config/env";
+import { demoBackend } from "./demoBackend";
 
 export interface CreateScheduleRequest {
-  deviceId: string;
   command: DoorCommand;
+  /** ISO-8601 UTC instant. */
+  executeAtUtc: string;
   percentage?: number;
-  scheduledAt: string; // ISO
 }
 
-// {
-//   "deviceId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-//   "commandType": 0,
-//   "targetPercentage": 0,
-//   "executeAtUtc": "2025-12-26T18:14:00.439Z"
-// }
-
 export const scheduleService = {
-  async getSchedules(token: string): Promise<Schedule[]> {
-    return api.get<Schedule[]>("/schedules", token);
+  getSchedules(): Promise<Schedule[]> {
+    if (env.demoMode) return Promise.resolve(demoBackend.getSchedules());
+
+    return api.get<Schedule[]>("/schedules");
   },
 
-  async createSchedule(schedule: CreateScheduleRequest, token: string): Promise<Schedule> {
-    return api.post<Schedule>(
-      "/schedules",
-      {
-        deviceId: "0f8fad5b-d9cb-469f-a165-70867728950e",
-        commandType: schedule.command,
-        targetPercentage: schedule.percentage ?? 0,
-        executeAtUtc: schedule.scheduledAt,
-      },
-      token
-    );
+  createSchedule(schedule: CreateScheduleRequest): Promise<Schedule> {
+    if (env.demoMode) {
+      return Promise.resolve(
+        demoBackend.createSchedule(schedule.command, schedule.executeAtUtc, schedule.percentage),
+      );
+    }
+
+    return api.post<Schedule>("/schedules", {
+      commandType: schedule.command,
+      targetPercentage: schedule.percentage ?? null,
+      executeAtUtc: schedule.executeAtUtc,
+    });
   },
 
-  async deleteSchedule(id: string, token: string): Promise<void> {
-    return api.delete(`/schedules/${id}`, token);
+  deleteSchedule(id: string): Promise<void> {
+    if (env.demoMode) {
+      demoBackend.deleteSchedule(id);
+      return Promise.resolve();
+    }
+
+    return api.delete(`/schedules/${id}`);
   },
 };

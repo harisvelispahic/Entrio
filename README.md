@@ -281,7 +281,6 @@ Then fill in `.env`:
 |---|---|
 | `MSSQL_SA_PASSWORD` | 8+ chars, upper + lower + digit + symbol |
 | `JWT_KEY` | 32+ characters. `openssl rand -base64 48` |
-| `OWNER_EMAIL`, `OWNER_PIN` | Your login. Seeded on first start against an empty DB |
 | `DEVICE_KEY` | Shared secret for the ESP32. Must match `Esp32.IoT/secrets.h` |
 | `API_BASE_URL` | `http://localhost:5263/api` |
 | `ConnectionStrings__DefaultConnection` | Bottom block. Password must match `MSSQL_SA_PASSWORD` |
@@ -290,6 +289,27 @@ Then fill in `.env`:
 > created.** Changing it later silently has no effect — the container keeps the
 > original password and the API can no longer log in. Fixing it requires
 > `docker compose down -v`, **which deletes the database.**
+
+---
+
+## Logging in
+
+The owner account is seeded on first start from
+`Backend.IoT/IoT.API/Configuration/DatabaseSeeder.cs`:
+
+| Email | Password |
+|---|---|
+| `admin@entrio.local` | `Entrio123!` |
+
+These are deliberately public and in source, not in `.env`, so anyone who clones the
+repo can log in. There is nothing behind the login but a simulated garage door. The
+login page shows them too, with a button to fill them in. A real deployment would
+replace the seeder.
+
+Auth uses short-lived access tokens (15 min) plus rotating refresh tokens (7 days).
+The frontend refreshes transparently, so you are not logged out mid-session; a
+refresh token can only be used once, and logging out revokes every token for the
+account.
 
 ---
 
@@ -354,9 +374,18 @@ dotnet run
 ```
 
 No environment variables to set: `DotNetEnv` finds the repo-root `.env` by walking
-up from the working directory. The API listens on `http://0.0.0.0:5263` — bound to
-all interfaces on purpose, because the ESP32 reaches it over the LAN and a
-localhost-only binding would refuse it.
+up from the working directory. Swagger opens at <http://localhost:5263/swagger>.
+
+There are three launch profiles:
+
+| Profile | Binds | Use for |
+|---|---|---|
+| `http` | `localhost:5263` | normal development; opens Swagger |
+| `https` | `localhost:7287` + `localhost:5263` | when you need TLS locally |
+| `http-lan` | `0.0.0.0:5263` (all interfaces) | ESP32 work — the device reaches the API over the LAN, which a localhost-only binding refuses |
+
+`http-lan` does not launch a browser, because `0.0.0.0` is a valid address to *bind*
+but not one a browser can reliably *open*.
 
 > Visual Studio locks `bin`, so build or test from a shell with
 > `--artifacts-path <some other folder>` to avoid file-in-use errors.
@@ -399,6 +428,20 @@ Only public values belong in `env.js` — every visitor's browser downloads it.
 
 ---
 
+## Time and time zones
+
+**The API deals only in UTC instants and never converts between zones.** Timestamps go
+out with an explicit `Z`, and incoming values are read as UTC. The browser does all
+local-time work: it turns your wall-clock choice into a UTC instant and renders
+incoming instants back into local time.
+
+That division is also what makes daylight saving correct for free. The browser knows
+the offset actually in force on the chosen date, so a time picked in winter and one
+picked in summer both convert correctly — no timezone database is needed on the
+server.
+
+---
+
 ## 🧪 Device simulator (no hardware required)
 
 The ESP32 controller has been disassembled, but it only ever spoke four HTTP
@@ -416,6 +459,34 @@ Or on the host:
 cd tools/device-simulator
 node --env-file=../../.env simulator.mjs
 ```
+
+---
+
+## Demo mode (the Vercel deployment)
+
+The public Vercel deployment has no backend, so a visitor would otherwise meet a login
+form that can never succeed. Setting `DEMO_MODE=true` runs the app against an
+in-memory simulation instead: the door opens, closes and vents, schedules can be
+created and deleted, and the charts react to what you do. State resets on reload.
+
+A permanent banner says the data is simulated, and because the flag is **runtime**
+config it cannot leak into a local or Docker run — those never set it.
+
+Set it in Vercel's environment variables. To try it locally before deploying:
+
+```bash
+cd Frontend.IoT
+npm run dev:demo          # http://localhost:8080, demo mode on
+npm run dev               # back to normal, talking to the real API
+```
+
+(`dev:demo` passes a flag to the config generator rather than setting an inline
+environment variable, because `DEMO_MODE=true npm run dev` is Bash-only syntax and
+fails in PowerShell.)
+
+> This replaces an older silent fallback that returned invented data whenever an API
+> call failed, which made an outage or a 401 look exactly like real activity. Errors
+> now surface as errors.
 
 ---
 
@@ -446,9 +517,10 @@ on that same address. A containerised backend needs no firmware changes at all.
 
 3. Ensure the ESP32 and your PC are on the same WiFi, then upload from the Arduino IDE.
 
-The device's identity GUID `0f8fad5b-d9cb-469f-a165-70867728950e` is hardcoded in
-the firmware, in `Frontend.IoT/src/services/scheduleService.ts`, and in the seeder
-(`DatabaseStartup.FirmwareDeviceId`). All three must agree.
+The device's identity GUID `0f8fad5b-d9cb-469f-a165-70867728950e` is hardcoded in the
+firmware's status payload and in the seeder (`DatabaseSeeder.FirmwareDeviceId`). Both
+must agree. The frontend no longer needs it: the API resolves the single device
+server-side.
 
 **Future work:** WiFiManager + NVS would let you change the network and server URL
 from a captive portal instead of reflashing, and `allowedUIDs` could be served from

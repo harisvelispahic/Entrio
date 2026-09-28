@@ -5,6 +5,7 @@ import { env } from "@/config/env";
 
 export const API_BASE_URL = env.apiBaseUrl;
 
+
 // Polling interval for door status (in milliseconds)
 export const DOOR_STATUS_POLL_INTERVAL = 3000;
 
@@ -53,8 +54,8 @@ export interface Schedule {
 export interface DoorEvent {
   id: string;
   eventType: string;
-  source: "RFID" | "Web" | "Schedule" | "Manual";
-  user?: string;
+  /** DeviceEventSource enum name, serialized by the API as a string. */
+  source: string;
   timestamp: string;
   details?: string;
 }

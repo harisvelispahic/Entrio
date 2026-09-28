@@ -34,7 +34,7 @@ export function EventsTable({ events }: EventsTableProps) {
                 <TableHead>Time</TableHead>
                 <TableHead>Event</TableHead>
                 <TableHead>Source</TableHead>
-                <TableHead>User</TableHead>
+                <TableHead>Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -49,7 +49,7 @@ export function EventsTable({ events }: EventsTableProps) {
                       {event.source}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{event.user || "System"}</TableCell>
+                  <TableCell className="text-muted-foreground">{event.details || "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

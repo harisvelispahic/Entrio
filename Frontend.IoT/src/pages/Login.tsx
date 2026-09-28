@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { env } from '@/config/env';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,8 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DoorOpen, Loader2, AlertCircle, Shield } from 'lucide-react';
 
+// Seeded by Backend.IoT/IoT.API/Configuration/DatabaseSeeder.cs. Public on purpose:
+// there is nothing behind this login but a simulated garage door, and anyone cloning
+// the repo needs a way in. Keep in sync with DatabaseSeeder.OwnerEmail/OwnerPassword.
+const DEMO_EMAIL = 'admin@entrio.local';
+const DEMO_PASSWORD = 'Entrio123!';
+
 export default function Login() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [validationError, setValidationError] = useState('');
   
@@ -27,14 +34,14 @@ export default function Login() {
 
   useEffect(() => {
     clearError();
-  }, [username, password, clearError]);
+  }, [email, password, clearError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
 
-    if (!username.trim()) {
-      setValidationError('Username is required');
+    if (!email.trim()) {
+      setValidationError('Email is required');
       return;
     }
 
@@ -43,12 +50,12 @@ export default function Login() {
       return;
     }
 
-    if (password.length < 4) {
-      setValidationError('Password must be at least 4 characters');
+    if (password.length < 8) {
+      setValidationError('Password must be at least 8 characters');
       return;
     }
 
-    const success = await login({ username: username.trim(), password });
+    const success = await login({ email: email.trim(), password });
     if (success) {
       navigate(from, { replace: true });
     }
@@ -89,13 +96,13 @@ export default function Login() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
                 className="bg-secondary/50"
                 autoComplete="username"
@@ -115,6 +122,28 @@ export default function Login() {
                 autoComplete="current-password"
               />
             </div>
+
+            {!env.demoMode && (
+              <div className="rounded-md border border-border bg-secondary/30 p-3 text-sm">
+                <p className="font-medium text-foreground">Demo account</p>
+                <p className="text-muted-foreground font-mono text-xs mt-1">
+                  {DEMO_EMAIL} / {DEMO_PASSWORD}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 h-7 px-2 text-xs"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setEmail(DEMO_EMAIL);
+                    setPassword(DEMO_PASSWORD);
+                  }}
+                >
+                  Fill these in
+                </Button>
+              </div>
+            )}
 
             <Button
               type="submit"

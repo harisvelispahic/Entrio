@@ -40,10 +40,8 @@ public static class EnvironmentConfiguration
     /// </summary>
     private static readonly (string PlainName, string ConfigName)[] Aliases =
     {
-        ("JWT_KEY",      "Jwt__Key"),
-        ("DEVICE_KEY",   "Seed__DeviceKey"),
-        ("OWNER_EMAIL",  "Seed__OwnerEmail"),
-        ("OWNER_PIN",    "Seed__OwnerPin"),
+        ("JWT_KEY",    "Jwt__Key"),
+        ("DEVICE_KEY", "Device__Key"),
     };
 
     /// <summary>

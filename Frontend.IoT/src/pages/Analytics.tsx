@@ -1,74 +1,73 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EventsTable } from "@/components/analytics/EventsTable";
 import { AnalyticsCharts } from "@/components/analytics/AnalyticsCharts";
-// import { eventService, mockEvents, mockAnalytics } from '@/services/eventService';
-import { eventService, mockEvents, mockAnalytics } from "@/services/eventService";
-import { analyticsService } from "@/services/analyticsService";
+import { eventService } from "@/services/eventService";
+import { analyticsService, AnalyticsResponse } from "@/services/analyticsService";
 import { DoorEvent } from "@/config/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+
+const emptyAnalytics: AnalyticsResponse = {
+  opensPerDay: [],
+  openVsClosed: [],
+  eventSources: [],
+};
 
 export default function Analytics() {
-  const { token } = useAuth();
   const [events, setEvents] = useState<DoorEvent[]>([]);
-  const [analytics, setAnalytics] = useState(mockAnalytics);
+  const [analytics, setAnalytics] = useState<AnalyticsResponse>(emptyAnalytics);
   const [isLoading, setIsLoading] = useState(true);
-  const [usingMockData, setUsingMockData] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [eventsData, analyticsData] = await Promise.all([
+        eventService.getEvents(),
+        analyticsService.get(),
+      ]);
+
+      setEvents(eventsData);
+      setAnalytics(analyticsData);
+    } catch (err) {
+      // This page used to fall back to invented sample data on any failure, which made
+      // an outage indistinguishable from real activity. It now says so plainly instead.
+      setError(err instanceof Error ? err.message : "Failed to load analytics");
+      setEvents([]);
+      setAnalytics(emptyAnalytics);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchData() {
-      if (!token) return;
-
-      setIsLoading(true);
-      setUsingMockData(false);
-
-      try {
-        const [eventsData, analyticsData] = await Promise.all([
-          eventService.getEvents(token),
-          analyticsService.get(token),
-        ]);
-
-        setEvents(eventsData);
-        setAnalytics(analyticsData);
-
-        // detect fallback usage
-        if (eventsData === mockEvents || analyticsData === mockAnalytics) {
-          setUsingMockData(true);
-        }
-      } catch {
-        setEvents(mockEvents);
-        setAnalytics(mockAnalytics);
-        setUsingMockData(true);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [token]);
+    load();
+  }, [load]);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Page header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
         <p className="text-muted-foreground">View door activity history and usage statistics</p>
       </div>
 
-      {/* Mock data notice */}
-      {usingMockData && (
-        <Alert className="border-primary/30 bg-primary/5">
-          <Info className="h-4 w-4 text-primary" />
-          <AlertDescription className="text-sm">
-            Displaying sample data. Connect the analytics API endpoints to see real data.
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={load}>
+              Retry
+            </Button>
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Loading state */}
       {isLoading ? (
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -94,14 +93,11 @@ export default function Analytics() {
         </div>
       ) : (
         <>
-          {/* Charts */}
           <AnalyticsCharts
             opensPerDay={analytics.opensPerDay}
             openVsClosed={analytics.openVsClosed}
             eventSources={analytics.eventSources}
           />
-
-          {/* Events table */}
           <EventsTable events={events} />
         </>
       )}

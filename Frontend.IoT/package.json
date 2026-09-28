@@ -7,12 +7,14 @@
     "config": "node scripts/generate-env.mjs",
     "predev": "npm run config",
     "dev": "vite",
+    "dev:demo": "node scripts/generate-env.mjs --demo && vite",
     "prestart": "npm run config",
     "start": "vite",
     "prebuild": "npm run config",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {

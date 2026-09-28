@@ -8,6 +8,7 @@ public interface IAppDbContext
 {
     // Identity
     DbSet<OwnerAccountEntity> OwnerAccounts { get; }
+    DbSet<RefreshTokenEntity> RefreshTokens { get; }
 
     // Devices
     DbSet<DeviceEntity> Devices { get; }
