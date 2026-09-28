@@ -15,5 +15,5 @@ public interface IDoorService
     Task<DoorStatusResult> GetStatusAsync(CancellationToken ct = default);
 
     /// <summary>Queues a door command for the controller to collect on its next poll.</summary>
-    Task SendCommandAsync(DeviceCommandType command, int? percentage, CancellationToken ct = default);
+    Task SendCommandAsync(DoorCommandRequest request, CancellationToken ct = default);
 }

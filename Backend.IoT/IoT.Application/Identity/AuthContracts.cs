@@ -1,8 +1,15 @@
 namespace IoT.Application.Identity;
 
-public record LoginRequest(string Email, string Password);
+public record LoginRequest
+{
+    public string Email { get; init; } = string.Empty;
+    public string Password { get; init; } = string.Empty;
+}
 
-public record RefreshRequest(string RefreshToken);
+public record RefreshRequest
+{
+    public string RefreshToken { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// What the client gets on login and on refresh.

@@ -23,9 +23,10 @@ Rules:
   that is not about HTTP, it belongs in a service.
 - **Entities are created and mutated in services**, with object initialisers. No
   constructors, no `MarkX()` methods on entities.
-- **Business rules live in services**, not controllers — vent percentage, auto-close
-  range, future-dating. FluentValidation will add request-shape checks on top; it
-  does not replace these.
+- **Requests are validated by FluentValidation**, in the service, not the controller.
+  Services inject `IValidator<T>` and call `ValidateAndThrowAsync` as their first
+  statement; `ValidationExceptionHandler` turns the failure into a 400 keyed by
+  property name.
 - Every table name is pinned with `ToTable` in `Configurations/`, which is what makes
   a CLR rename schema-neutral (see `RenameEntitiesDropEntitySuffix`, an empty
   migration kept so the snapshot matches the renamed types).
@@ -86,11 +87,34 @@ go in `env.js`; the browser downloads it.
 - Fixed host ports: API **5263** (hardcoded in the firmware and a CORS origin),
   web **4300**, SQL **1437**. Do not change them casually.
 
+## Validation
+
+Request types live in the Application layer beside their service (`DoorRequests.cs`,
+`ScheduleRequests.cs`, `DeviceRequests.cs`, `AuthContracts.cs`), not as nested classes
+on controllers — that is what gives validators something to attach to and lets a
+controller bind and pass straight through.
+
+The split that decides where a check goes:
+
+- **Validator** — anything answerable from the request alone: ranges, enum membership,
+  required fields, email format, future-dating. Conditional rules use `.When(...)`, so
+  a Vent percentage is required only for Vent.
+- **Service** — anything needing database or domain state: "no device registered",
+  "schedule not found", "these credentials are wrong".
+
+Bad credentials must stay `UnauthorizedException` (401), never a validation failure
+(400): a well-formed request with the wrong password is not a malformed request.
+
+Register new validators nowhere — `AddValidatorsFromAssemblyContaining` discovers
+everything in the Application assembly.
+
 ## Errors
 
 Throw `EntrioException` subclasses (`UnauthorizedException`, `NotFoundException`,
 `BusinessRuleException`) for anything a client should see. The handler chain in
-`IoT.API/Middleware` maps them to a status code and a consistent JSON body. Anything
+`IoT.API/Middleware` maps them to a status code and a consistent JSON body. The chain
+runs in registration order: domain errors, then validation failures, then a terminal
+catch-all. Anything
 else becomes a logged 500 with a `traceId` and no internal detail — never return a
 raw exception. Do not use `return BadRequest(...)`/`Problem(...)` in new code.
 

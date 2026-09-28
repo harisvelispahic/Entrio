@@ -16,27 +16,15 @@ public class DeviceStatusController : ControllerBase
         _statuses = statuses;
     }
 
-    public sealed class UpdateStatusRequest
-    {
-        public DoorState DoorState { get; init; }
-        public int PositionPercent { get; init; }
-        public bool ObstacleDetected { get; init; }
-    }
-
     [DeviceAuthorize]
     [HttpPost]
-    public async Task<IActionResult> UpdateStatus([FromBody] UpdateStatusRequest request, CancellationToken ct)
+    public async Task<IActionResult> UpdateStatus([FromBody] DeviceStatusRequest request, CancellationToken ct)
     {
         // The device is resolved from its key, not from a deviceId in the body: an
         // authenticated device can only ever report its own status.
-        var device = (Device)HttpContext.Items["Device"]!;
+        var device = (Device)HttpContext.Items[DeviceAuthorizeAttribute.DeviceItemKey]!;
 
-        await _statuses.UpdateAsync(
-            device.Id,
-            request.DoorState,
-            request.PositionPercent,
-            request.ObstacleDetected,
-            ct);
+        await _statuses.UpdateAsync(device.Id, request, ct);
 
         return NoContent();
     }

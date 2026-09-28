@@ -1,3 +1,4 @@
+using FluentValidation;
 using IoT.Application.Common;
 using IoT.Application.Common.Exceptions;
 using IoT.Application.Devices;
@@ -10,11 +11,16 @@ public class ScheduleService : IScheduleService
 {
     private readonly IAppDbContext _db;
     private readonly IDeviceCommandService _commands;
+    private readonly IValidator<CreateScheduleRequest> _createValidator;
 
-    public ScheduleService(IAppDbContext db, IDeviceCommandService commands)
+    public ScheduleService(
+        IAppDbContext db,
+        IDeviceCommandService commands,
+        IValidator<CreateScheduleRequest> createValidator)
     {
         _db = db;
         _commands = commands;
+        _createValidator = createValidator;
     }
 
     public async Task<IReadOnlyList<Schedule>> GetUpcomingAsync(Guid deviceId, CancellationToken ct = default) =>
@@ -26,24 +32,20 @@ public class ScheduleService : IScheduleService
 
     public async Task<Schedule> CreateAsync(
         Guid deviceId,
-        DeviceCommandType commandType,
-        int? targetPercentage,
-        DateTime executeAtUtc,
+        CreateScheduleRequest request,
         CancellationToken ct = default)
     {
-        if (commandType == DeviceCommandType.Vent && targetPercentage is null or < 1 or > 99)
-            throw new BusinessRuleException("Vent requires a target percentage between 1 and 99.");
-
-        if (executeAtUtc <= DateTime.UtcNow)
-            throw new BusinessRuleException("Scheduled time must be in the future.");
+        await _createValidator.ValidateAndThrowAsync(request, ct);
 
         var schedule = new Schedule
         {
             Id = Guid.NewGuid(),
             DeviceId = deviceId,
-            CommandType = commandType,
-            TargetPercentage = commandType == DeviceCommandType.Vent ? targetPercentage : null,
-            ExecuteAtUtc = executeAtUtc,
+            CommandType = request.CommandType,
+            TargetPercentage = request.CommandType == DeviceCommandType.Vent
+                ? request.TargetPercentage
+                : null,
+            ExecuteAtUtc = request.ExecuteAtUtc,
             IsActive = true,
             WasTriggered = false
         };

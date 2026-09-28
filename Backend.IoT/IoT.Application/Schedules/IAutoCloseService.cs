@@ -8,8 +8,7 @@ public interface IAutoCloseService
 
     Task<AutoCloseSettings> UpdateSettingsAsync(
         Guid deviceId,
-        bool enabled,
-        int afterSeconds,
+        AutoCloseSettingsRequest request,
         CancellationToken ct = default);
 
     /// <summary>

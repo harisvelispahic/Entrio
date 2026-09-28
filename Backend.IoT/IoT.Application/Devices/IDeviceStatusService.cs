@@ -11,10 +11,5 @@ public interface IDeviceStatusService
     Task<DeviceStatus> GetOrCreateAsync(Guid deviceId, CancellationToken ct = default);
 
     /// <summary>Applies a status report from the controller.</summary>
-    Task UpdateAsync(
-        Guid deviceId,
-        DoorState doorState,
-        int positionPercent,
-        bool obstacleDetected,
-        CancellationToken ct = default);
+    Task UpdateAsync(Guid deviceId, DeviceStatusRequest request, CancellationToken ct = default);
 }

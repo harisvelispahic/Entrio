@@ -1,3 +1,4 @@
+using FluentValidation;
 using IoT.Application.Common;
 using IoT.Application.Common.Exceptions;
 using IoT.Domain.Entities.Devices;
@@ -11,10 +12,12 @@ public class AutoCloseService : IAutoCloseService
     public const int MaxAfterSeconds = 3600;
 
     private readonly IAppDbContext _db;
+    private readonly IValidator<AutoCloseSettingsRequest> _settingsValidator;
 
-    public AutoCloseService(IAppDbContext db)
+    public AutoCloseService(IAppDbContext db, IValidator<AutoCloseSettingsRequest> settingsValidator)
     {
         _db = db;
+        _settingsValidator = settingsValidator;
     }
 
     public async Task<AutoCloseSettings> GetSettingsAsync(Guid deviceId, CancellationToken ct = default) =>
@@ -23,20 +26,15 @@ public class AutoCloseService : IAutoCloseService
 
     public async Task<AutoCloseSettings> UpdateSettingsAsync(
         Guid deviceId,
-        bool enabled,
-        int afterSeconds,
+        AutoCloseSettingsRequest request,
         CancellationToken ct = default)
     {
-        if (afterSeconds is < MinAfterSeconds or > MaxAfterSeconds)
-        {
-            throw new BusinessRuleException(
-                $"Auto-close delay must be between {MinAfterSeconds} and {MaxAfterSeconds} seconds.");
-        }
+        await _settingsValidator.ValidateAndThrowAsync(request, ct);
 
         var settings = await GetSettingsAsync(deviceId, ct);
 
-        settings.Enabled = enabled;
-        settings.AfterSeconds = afterSeconds;
+        settings.Enabled = request.Enabled;
+        settings.AfterSeconds = request.AfterSeconds;
 
         await _db.SaveChangesAsync(ct);
 

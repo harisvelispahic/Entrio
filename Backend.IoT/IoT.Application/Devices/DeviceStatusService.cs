@@ -1,3 +1,4 @@
+using FluentValidation;
 using IoT.Application.Common;
 using IoT.Domain.Entities.Devices;
 using Microsoft.EntityFrameworkCore;
@@ -7,10 +8,12 @@ namespace IoT.Application.Devices;
 public class DeviceStatusService : IDeviceStatusService
 {
     private readonly IAppDbContext _db;
+    private readonly IValidator<DeviceStatusRequest> _validator;
 
-    public DeviceStatusService(IAppDbContext db)
+    public DeviceStatusService(IAppDbContext db, IValidator<DeviceStatusRequest> validator)
     {
         _db = db;
+        _validator = validator;
     }
 
     public async Task<DeviceStatus> GetOrCreateAsync(Guid deviceId, CancellationToken ct = default)
@@ -30,23 +33,23 @@ public class DeviceStatusService : IDeviceStatusService
 
     public async Task UpdateAsync(
         Guid deviceId,
-        DoorState doorState,
-        int positionPercent,
-        bool obstacleDetected,
+        DeviceStatusRequest request,
         CancellationToken ct = default)
     {
+        await _validator.ValidateAndThrowAsync(request, ct);
+
         var status = await GetOrCreateAsync(deviceId, ct);
 
-        status.DoorState = doorState;
-        status.PositionPercent = positionPercent;
-        status.ObstacleDetected = obstacleDetected;
+        status.DoorState = request.DoorState;
+        status.PositionPercent = request.PositionPercent;
+        status.ObstacleDetected = request.ObstacleDetected;
 
         // OpenedAtUtc tracks the current open period, so it is set on the way open and
         // cleared on the way closed rather than being a running timestamp.
-        if (doorState == DoorState.Open && status.OpenedAtUtc is null)
+        if (request.DoorState == DoorState.Open && status.OpenedAtUtc is null)
             status.OpenedAtUtc = DateTime.UtcNow;
 
-        if (doorState == DoorState.Closed)
+        if (request.DoorState == DoorState.Closed)
             status.OpenedAtUtc = null;
 
         status.UpdatedAtUtc = DateTime.UtcNow;

@@ -1,5 +1,4 @@
 using IoT.Application.Doors;
-using IoT.Domain.Entities.Devices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,18 +16,12 @@ public class DoorController : ControllerBase
         _doors = doors;
     }
 
-    public sealed class DoorCommandRequest
-    {
-        public DeviceCommandType Command { get; init; }
-        public int? Percentage { get; init; }
-    }
-
     [HttpPost("command")]
     public async Task<IActionResult> SendCommand(
         [FromBody] DoorCommandRequest request,
         CancellationToken ct)
     {
-        await _doors.SendCommandAsync(request.Command, request.Percentage, ct);
+        await _doors.SendCommandAsync(request, ct);
 
         return Accepted();
     }

@@ -19,12 +19,6 @@ public class AutoCloseController : ControllerBase
         _devices = devices;
     }
 
-    public sealed class AutoCloseSettingsRequest
-    {
-        public bool Enabled { get; init; }
-        public int AfterSeconds { get; init; }
-    }
-
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
     {
@@ -39,8 +33,7 @@ public class AutoCloseController : ControllerBase
     {
         var device = await _devices.GetAsync(ct);
 
-        var settings = await _autoClose.UpdateSettingsAsync(
-            device.Id, request.Enabled, request.AfterSeconds, ct);
+        var settings = await _autoClose.UpdateSettingsAsync(device.Id, request, ct);
 
         return Ok(new { enabled = settings.Enabled, afterSeconds = settings.AfterSeconds });
     }

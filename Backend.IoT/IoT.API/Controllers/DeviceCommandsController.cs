@@ -20,7 +20,7 @@ public class DeviceCommandsController : ControllerBase
         _commands = commands;
     }
 
-    private Device CurrentDevice => (Device)HttpContext.Items["Device"]!;
+    private Device CurrentDevice => (Device)HttpContext.Items[DeviceAuthorizeAttribute.DeviceItemKey]!;
 
     [DeviceAuthorize]
     [HttpGet("pending")]

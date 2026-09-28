@@ -1,3 +1,4 @@
+using FluentValidation;
 using IoT.API.Configuration;
 using IoT.API.Middleware;
 using IoT.Application.Analytics;
@@ -45,9 +46,10 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 
 // Exception handlers run as a chain in registration order: the domain handler claims the
-// expected EntrioException types, and the global one catches everything else. Registered
-// before AddControllers' pipeline via UseExceptionHandler below.
+// expected EntrioException types, the validation handler claims FluentValidation failures,
+// and the global one catches everything else.
 builder.Services.AddExceptionHandler<EntrioExceptionHandler>();
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
@@ -130,6 +132,11 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<AuthService>();
+
+// Request validators, discovered from the Application assembly. Services inject
+// IValidator<T> and call ValidateAndThrowAsync; ValidationExceptionHandler turns the
+// resulting ValidationException into a 400 keyed by property name.
+builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 
 // Application services, one per area of work.
 builder.Services.AddScoped<IDeviceService, DeviceService>();

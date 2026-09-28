@@ -20,26 +20,12 @@ public class SchedulesController : ControllerBase
         _devices = devices;
     }
 
-    public sealed class CreateScheduleRequest
-    {
-        public DeviceCommandType CommandType { get; init; }
-        public int? TargetPercentage { get; init; }
-
-        /// <summary>When to execute, as a UTC instant (e.g. 2026-12-25T20:30:00Z).</summary>
-        public DateTime ExecuteAtUtc { get; init; }
-    }
-
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateScheduleRequest request, CancellationToken ct)
     {
         var device = await _devices.GetAsync(ct);
 
-        var schedule = await _schedules.CreateAsync(
-            device.Id,
-            request.CommandType,
-            request.TargetPercentage,
-            request.ExecuteAtUtc,
-            ct);
+        var schedule = await _schedules.CreateAsync(device.Id, request, ct);
 
         return Ok(ToResponse(schedule));
     }

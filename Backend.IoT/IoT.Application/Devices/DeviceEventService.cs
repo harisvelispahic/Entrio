@@ -1,3 +1,4 @@
+using FluentValidation;
 using IoT.Application.Common;
 using IoT.Application.Schedules;
 using IoT.Domain.Entities.Devices;
@@ -9,27 +10,40 @@ public class DeviceEventService : IDeviceEventService
 {
     private readonly IAppDbContext _db;
     private readonly IAutoCloseService _autoClose;
+    private readonly IValidator<DeviceEventRequest> _validator;
 
-    public DeviceEventService(IAppDbContext db, IAutoCloseService autoClose)
+    public DeviceEventService(
+        IAppDbContext db,
+        IAutoCloseService autoClose,
+        IValidator<DeviceEventRequest> validator)
     {
         _db = db;
         _autoClose = autoClose;
+        _validator = validator;
     }
 
     public async Task RecordAsync(
         Guid deviceId,
-        DeviceEventType eventType,
-        DeviceEventSource source,
-        string? details = null,
+        DeviceEventRequest request,
         CancellationToken ct = default)
     {
+        await _validator.ValidateAndThrowAsync(request, ct);
+
+        // Safe to parse unchecked: the validator has already rejected anything unknown.
+        var eventType = Enum.Parse<DeviceEventType>(request.Type, ignoreCase: true);
+
+        // Source is optional; the firmware omits it for system-raised events.
+        var source = string.IsNullOrWhiteSpace(request.Source)
+            ? DeviceEventSource.System
+            : Enum.Parse<DeviceEventSource>(request.Source, ignoreCase: true);
+
         _db.DeviceEvents.Add(new DeviceEvent
         {
             Id = Guid.NewGuid(),
             DeviceId = deviceId,
             EventType = eventType,
             Source = source,
-            Details = details,
+            Details = null,
             OccurredAtUtc = DateTime.UtcNow
         });
 

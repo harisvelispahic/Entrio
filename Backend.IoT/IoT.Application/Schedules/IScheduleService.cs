@@ -9,9 +9,7 @@ public interface IScheduleService
 
     Task<Schedule> CreateAsync(
         Guid deviceId,
-        DeviceCommandType commandType,
-        int? targetPercentage,
-        DateTime executeAtUtc,
+        CreateScheduleRequest request,
         CancellationToken ct = default);
 
     Task DeleteAsync(Guid id, CancellationToken ct = default);

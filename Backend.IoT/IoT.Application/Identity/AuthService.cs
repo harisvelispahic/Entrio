@@ -1,3 +1,4 @@
+using FluentValidation;
 using IoT.Application.Common;
 using IoT.Application.Common.Exceptions;
 using IoT.Domain.Entities.Identity;
@@ -13,24 +14,35 @@ public class AuthService
     private readonly IAppDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokens;
+    private readonly IValidator<LoginRequest> _loginValidator;
+    private readonly IValidator<RefreshRequest> _refreshValidator;
 
-    public AuthService(IAppDbContext db, IPasswordHasher passwordHasher, ITokenService tokens)
+    public AuthService(
+        IAppDbContext db,
+        IPasswordHasher passwordHasher,
+        ITokenService tokens,
+        IValidator<LoginRequest> loginValidator,
+        IValidator<RefreshRequest> refreshValidator)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _tokens = tokens;
+        _loginValidator = loginValidator;
+        _refreshValidator = refreshValidator;
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
-        var email = request.Email?.Trim() ?? string.Empty;
+        await _loginValidator.ValidateAndThrowAsync(request, ct);
+
+        var email = request.Email.Trim();
 
         var owner = await _db.OwnerAccounts
             .FirstOrDefaultAsync(o => o.Email.ToLower() == email.ToLower(), ct);
 
         // One message for "no such account" and "wrong password" alike, so the endpoint
         // cannot be used to enumerate which accounts exist.
-        if (owner is null || !_passwordHasher.Verify(request.Password ?? string.Empty, owner.PasswordHash, owner.PasswordSalt))
+        if (owner is null || !_passwordHasher.Verify(request.Password, owner.PasswordHash, owner.PasswordSalt))
             throw new UnauthorizedException("Invalid email or password.");
 
         owner.LastLoginAtUtc = DateTime.UtcNow;
@@ -40,8 +52,7 @@ public class AuthService
 
     public async Task<AuthResponse> RefreshAsync(RefreshRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.RefreshToken))
-            throw new UnauthorizedException("Refresh token is required.");
+        await _refreshValidator.ValidateAndThrowAsync(request, ct);
 
         var hash = _tokens.HashRefreshToken(request.RefreshToken);
 

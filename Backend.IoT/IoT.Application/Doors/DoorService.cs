@@ -1,6 +1,5 @@
-using IoT.Application.Common.Exceptions;
+using FluentValidation;
 using IoT.Application.Devices;
-using IoT.Domain.Entities.Devices;
 
 namespace IoT.Application.Doors;
 
@@ -9,15 +8,18 @@ public class DoorService : IDoorService
     private readonly IDeviceService _devices;
     private readonly IDeviceStatusService _statuses;
     private readonly IDeviceCommandService _commands;
+    private readonly IValidator<DoorCommandRequest> _commandValidator;
 
     public DoorService(
         IDeviceService devices,
         IDeviceStatusService statuses,
-        IDeviceCommandService commands)
+        IDeviceCommandService commands,
+        IValidator<DoorCommandRequest> commandValidator)
     {
         _devices = devices;
         _statuses = statuses;
         _commands = commands;
+        _commandValidator = commandValidator;
     }
 
     public async Task<DoorStatusResult> GetStatusAsync(CancellationToken ct = default)
@@ -33,16 +35,15 @@ public class DoorService : IDoorService
             device.LastSeenAtUtc);
     }
 
-    public async Task SendCommandAsync(
-        DeviceCommandType command,
-        int? percentage,
-        CancellationToken ct = default)
+    public async Task SendCommandAsync(DoorCommandRequest request, CancellationToken ct = default)
     {
-        if (command == DeviceCommandType.Vent && percentage is null or < 1 or > 99)
-            throw new BusinessRuleException("Vent requires a percentage between 1 and 99.");
+        // ValidateAndThrowAsync raises a ValidationException, which ValidationExceptionHandler
+        // turns into a 400 keyed by property name.
+        await _commandValidator.ValidateAndThrowAsync(request, ct);
 
         var device = await _devices.GetAsync(ct);
 
-        await _commands.QueueAsync(device.Id, command, percentage, suppressAutoClose: false, ct);
+        await _commands.QueueAsync(
+            device.Id, request.Command, request.Percentage, suppressAutoClose: false, ct);
     }
 }
