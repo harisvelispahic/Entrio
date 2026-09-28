@@ -51,6 +51,23 @@ const state: DemoState = {
 };
 
 let travelTimer: ReturnType<typeof setInterval> | null = null;
+let autoCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Mirrors the backend: arm on a stop or a completed open, cancel once closed. */
+function rearmAutoClose(): void {
+  if (autoCloseTimer !== null) {
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = null;
+  }
+
+  if (!state.autoClose.enabled || state.position === 0) return;
+
+  autoCloseTimer = setTimeout(() => {
+    autoCloseTimer = null;
+    state.target = 0;
+    startTravel();
+  }, state.autoClose.afterSeconds * 1000);
+}
 
 function touch(): void {
   state.lastUpdated = new Date().toISOString();
@@ -90,6 +107,7 @@ function startTravel(): void {
         : DoorState.Stopped;
 
       addEvent(state.position === 0 ? "DoorClosed" : "DoorOpened", "Remote");
+      rearmAutoClose();
 
       state.target = null;
       clearInterval(travelTimer!);
@@ -164,6 +182,7 @@ export const demoBackend = {
 
   setAutoClose(settings: AutoCloseSettings): AutoCloseSettings {
     state.autoClose = { ...settings };
+    rearmAutoClose();
     return this.getAutoClose();
   },
 

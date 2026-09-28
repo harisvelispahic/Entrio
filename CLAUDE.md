@@ -142,6 +142,13 @@ raw exception. Do not use `return BadRequest(...)`/`Problem(...)` in new code.
 - **Device events are raised on travel COMPLETION**, not on command acknowledgement
   (firmware: `runMotor()` at `distanceToGo() == 0`). The simulator must match, or
   auto-close starts counting while the door is still moving.
+- **A stop raises no event**, because travel never completed, so auto-close is armed
+  from the STATUS transition instead (`DeviceStatusService.ReactToTransitionAsync`).
+  That handler compares against the previous state on purpose: the controller
+  re-reports its current status every 10s, so reacting to the state rather than the
+  change would reset the countdown forever and it would never fire.
+- **The simulator is volume-mounted**, so editing `simulator.mjs` needs
+  `docker compose restart entrio-device-sim`; a `--build` will not pick it up.
 
 ## Demo mode
 

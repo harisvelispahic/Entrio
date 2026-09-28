@@ -50,12 +50,7 @@ public class AutoCloseService : IAutoCloseService
 
         // Supersede any pending auto-close, so re-opening restarts the countdown rather
         // than leaving an older, earlier close still armed.
-        var pending = await _db.Schedules
-            .Where(s => s.DeviceId == deviceId && s.IsActive && !s.WasTriggered)
-            .ToListAsync(ct);
-
-        foreach (var schedule in pending)
-            schedule.IsActive = false;
+        await DeactivatePendingAsync(deviceId, ct);
 
         _db.Schedules.Add(new Schedule
         {
@@ -71,5 +66,21 @@ public class AutoCloseService : IAutoCloseService
         });
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task CancelPendingAsync(Guid deviceId, CancellationToken ct = default)
+    {
+        await DeactivatePendingAsync(deviceId, ct);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task DeactivatePendingAsync(Guid deviceId, CancellationToken ct)
+    {
+        var pending = await _db.Schedules
+            .Where(s => s.DeviceId == deviceId && s.IsActive && !s.WasTriggered)
+            .ToListAsync(ct);
+
+        foreach (var schedule in pending)
+            schedule.IsActive = false;
     }
 }

@@ -16,4 +16,10 @@ public interface IAutoCloseService
     /// a schedule rather than a timer so it survives an API restart.
     /// </summary>
     Task ArmAsync(Guid deviceId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Deactivates any pending auto-close. Called when the door reaches closed by other
+    /// means, so a stale schedule cannot later send a Close to an already-closed door.
+    /// </summary>
+    Task CancelPendingAsync(Guid deviceId, CancellationToken ct = default);
 }

@@ -1,4 +1,4 @@
-import { DoorState } from "@/config/api";
+import { DoorState, DoorStateLabels } from "@/config/api";
 import { cn } from "@/lib/utils";
 
 interface DoorVisualizationProps {
@@ -7,8 +7,17 @@ interface DoorVisualizationProps {
 }
 
 export function DoorVisualization({ position, state }: DoorVisualizationProps) {
+  // The pulse is what tells the user the door is still travelling, so only these two
+  // states may animate. A stopped door has to sit still or it reads as still moving.
   const isMoving = state === DoorState.Opening || state === DoorState.Closing;
+  const isStopped = state === DoorState.Stopped;
+
   const doorHeight = 100 - position; // Invert: 0 position = 100% height (closed)
+
+  // A door stopped part-way is described better by where it stopped than by the bare
+  // word "stopped".
+  const label =
+    isStopped && position > 0 ? `Stopped at ${position}%` : DoorStateLabels[state];
 
   return (
     <div className="relative w-full max-w-xs mx-auto">
@@ -56,7 +65,7 @@ export function DoorVisualization({ position, state }: DoorVisualizationProps) {
             state === DoorState.Open && "bg-success glow-success",
             state === DoorState.Closed && "bg-destructive",
             isMoving && "bg-warning glow-accent animate-pulse",
-            // state === DoorState.Ventilating && "bg-primary glow-primary animate-pulse",
+            isStopped && "bg-primary glow-primary",
             state === DoorState.Error && "bg-muted"
           )}
         />
@@ -75,7 +84,7 @@ export function DoorVisualization({ position, state }: DoorVisualizationProps) {
               state === DoorState.Open && "bg-success",
               state === DoorState.Closed && "bg-muted",
               isMoving && "bg-warning",
-              // state === DoorState.Ventilating && "bg-primary",
+              isStopped && "bg-primary",
               state === DoorState.Error && "bg-muted"
             )}
             style={{ width: `${position}%` }}
@@ -90,12 +99,12 @@ export function DoorVisualization({ position, state }: DoorVisualizationProps) {
             "inline-flex items-center px-3 py-1 rounded-full text-sm font-medium uppercase tracking-wide",
             state === DoorState.Open && "bg-success/20 text-success",
             state === DoorState.Closed && "bg-muted text-muted-foreground",
-            (state === DoorState.Opening || state === DoorState.Closing) && "bg-warning/20 text-warning animate-pulse",
-            // state === DoorState.Ventilating && "bg-primary/20 text-primary",
+            isMoving && "bg-warning/20 text-warning animate-pulse",
+            isStopped && "bg-primary/20 text-primary",
             state === DoorState.Error && "bg-muted text-muted-foreground"
           )}
         >
-          {/* {state === "ventilating" ? `Venting ${position}%` : state} */}
+          {label}
         </span>
       </div>
     </div>

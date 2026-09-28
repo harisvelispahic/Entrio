@@ -19,7 +19,10 @@ const MAX_SECONDS = 3600;
  */
 export function AutoCloseCard() {
   const [enabled, setEnabled] = useState(false);
-  const [afterSeconds, setAfterSeconds] = useState(30);
+
+  // Held as text, not a number: Number("") is 0, so clearing the field snapped it back
+  // to "0" and typing 10 left you with "010". Parsed only when saving.
+  const [afterSecondsInput, setAfterSecondsInput] = useState("30");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -28,7 +31,7 @@ export function AutoCloseCard() {
       .get()
       .then((settings) => {
         setEnabled(settings.enabled);
-        setAfterSeconds(settings.afterSeconds);
+        setAfterSecondsInput(String(settings.afterSeconds));
       })
       .catch(() => {
         // Non-fatal: the card just shows its defaults rather than breaking the dashboard.
@@ -36,7 +39,18 @@ export function AutoCloseCard() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const save = async (nextEnabled: boolean, nextSeconds: number) => {
+  const save = async (nextEnabled: boolean, rawSeconds: string) => {
+    const nextSeconds = Number(rawSeconds);
+
+    if (rawSeconds.trim() === "" || !Number.isInteger(nextSeconds)) {
+      toast({
+        title: "Invalid delay",
+        description: "Enter a whole number of seconds.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (nextSeconds < MIN_SECONDS || nextSeconds > MAX_SECONDS) {
       toast({
         title: "Invalid delay",
@@ -51,7 +65,7 @@ export function AutoCloseCard() {
     try {
       const saved = await autoCloseService.update({ enabled: nextEnabled, afterSeconds: nextSeconds });
       setEnabled(saved.enabled);
-      setAfterSeconds(saved.afterSeconds);
+      setAfterSecondsInput(String(saved.afterSeconds));
 
       toast({
         title: "Auto-close updated",
@@ -90,7 +104,7 @@ export function AutoCloseCard() {
             id="auto-close-enabled"
             checked={enabled}
             disabled={isLoading || isSaving}
-            onCheckedChange={(checked) => save(checked, afterSeconds)}
+            onCheckedChange={(checked) => save(checked, afterSecondsInput)}
           />
         </div>
 
@@ -102,16 +116,16 @@ export function AutoCloseCard() {
               type="number"
               min={MIN_SECONDS}
               max={MAX_SECONDS}
-              value={afterSeconds}
+              value={afterSecondsInput}
               disabled={isLoading || isSaving}
-              onChange={(e) => setAfterSeconds(Number(e.target.value))}
+              onChange={(e) => setAfterSecondsInput(e.target.value)}
               className="bg-secondary/50"
             />
           </div>
           <Button
             variant="outline"
             disabled={isLoading || isSaving}
-            onClick={() => save(enabled, afterSeconds)}
+            onClick={() => save(enabled, afterSecondsInput)}
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
           </Button>

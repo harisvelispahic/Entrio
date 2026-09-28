@@ -82,7 +82,11 @@ export default function Dashboard() {
                 {status.obstacle ? (
                   <span className="text-red-500 text-2xl font-semibold">Obstacle detected</span>
                 ) : (
-                  <p className="text-2xl font-bold capitalize">{DoorStateLabels[status.state]}</p>
+                  <p className="text-2xl font-bold capitalize">
+                    {status.state === DoorState.Stopped && status.position > 0
+                      ? `Stopped at ${status.position}%`
+                      : DoorStateLabels[status.state]}
+                  </p>
                 )}
               </div>
               <div

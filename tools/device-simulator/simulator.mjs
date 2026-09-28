@@ -155,6 +155,13 @@ async function tick() {
     if (applyCommand(pending)) {
       await call("POST", `/api/device/commands/${id}/ack`, "");
       console.log(`[cmd] ${id} acknowledged`);
+
+      // Report immediately after applying. STOP changes the state without starting any
+      // travel, so advance() below returns false and would never report it -- the
+      // backend would keep showing the door as still moving. The firmware reports the
+      // same way, from stopDoor().
+      await reportStatus();
+      console.log(`[state] position=${state.position}% door=${state.door}`);
     }
   }
 
