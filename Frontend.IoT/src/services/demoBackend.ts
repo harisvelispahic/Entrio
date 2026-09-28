@@ -1,4 +1,12 @@
-import { DoorCommand, DoorEvent, DoorState, DoorStatus, Schedule } from "@/config/api";
+import {
+  DoorCommand,
+  DoorEvent,
+  DoorState,
+  DoorStatus,
+  ScheduleEntry,
+  ScheduleEntryKind,
+} from "@/config/api";
+import type { CreateScheduleRequest } from "./scheduleService";
 import type { AnalyticsResponse } from "./analyticsService";
 import type { AutoCloseSettings } from "./autoCloseService";
 
@@ -24,7 +32,7 @@ interface DemoState {
   lastUpdated: string;
   target: number | null;
   events: DoorEvent[];
-  schedules: Schedule[];
+  schedules: ScheduleEntry[];
   autoClose: AutoCloseSettings;
 }
 
@@ -149,27 +157,27 @@ export const demoBackend = {
     startTravel();
   },
 
-  getSchedules(): Schedule[] {
+  getSchedules(): ScheduleEntry[] {
     return [...state.schedules];
   },
 
-  createSchedule(commandType: DoorCommand, executeAtUtc: string, percentage?: number): Schedule {
-    const schedule: Schedule = {
+  createSchedule(request: CreateScheduleRequest): ScheduleEntry {
+    const entry: ScheduleEntry = {
       id: crypto.randomUUID(),
-      deviceId: "demo",
-      commandType,
-      targetPercentage: commandType === DoorCommand.VENT ? (percentage ?? null) : null,
-      executeAtUtc,
-      isActive: true,
-      wasTriggered: false,
+      kind: ScheduleEntryKind.Period,
+      commandType: request.commandType,
+      targetPercentage:
+        request.commandType === DoorCommand.VENT ? (request.targetPercentage ?? null) : null,
+      opensAtUtc: request.opensAtUtc,
+      closesAtUtc: request.closesAtUtc,
     };
 
-    state.schedules.push(schedule);
-    return schedule;
+    state.schedules.push(entry);
+    return entry;
   },
 
-  deleteSchedule(id: string): void {
-    state.schedules = state.schedules.filter((s) => s.id !== id);
+  deleteSchedule(groupId: string): void {
+    state.schedules = state.schedules.filter((s) => s.id !== groupId);
   },
 
   getEvents(): DoorEvent[] {

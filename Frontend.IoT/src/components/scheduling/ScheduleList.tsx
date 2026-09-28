@@ -1,28 +1,39 @@
-import { Schedule, DoorCommand } from "@/config/api";
+import { DoorCommand, ScheduleEntry, ScheduleEntryKind } from "@/config/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, DoorOpen, DoorClosed, OctagonX, Wind, Trash2, Clock } from "lucide-react";
-import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, DoorOpen, Wind, Trash2, Clock, Timer, ArrowRight } from "lucide-react";
+import { format, isSameDay } from "date-fns";
 
 interface ScheduleListProps {
-  schedules: Schedule[];
-  onDelete: (id: string) => Promise<void>;
+  schedules: ScheduleEntry[];
+  onDelete: (groupId: string) => Promise<void>;
   isDeleting: string | null;
 }
 
-const commandIcons: Record<DoorCommand, React.ReactNode> = {
+/** Only Open and Vent can be scheduled, so only those two need an icon and a label. */
+const actionIcons: Partial<Record<DoorCommand, React.ReactNode>> = {
   [DoorCommand.OPEN]: <DoorOpen className="h-4 w-4 text-success" />,
-  [DoorCommand.CLOSE]: <DoorClosed className="h-4 w-4 text-muted-foreground" />,
-  [DoorCommand.STOP]: <OctagonX className="h-4 w-4 text-destructive" />,
   [DoorCommand.VENT]: <Wind className="h-4 w-4 text-primary" />,
 };
 
-const commandLabels: Record<DoorCommand, string> = {
+const actionLabels: Partial<Record<DoorCommand, string>> = {
   [DoorCommand.OPEN]: "Open",
-  [DoorCommand.CLOSE]: "Close",
-  [DoorCommand.STOP]: "Stop",
   [DoorCommand.VENT]: "Vent",
 };
+
+/**
+ * Renders the closing time relative to the opening time: a period that ends the same day
+ * only needs the time, not the whole date again.
+ */
+function formatPeriod(opensAt: Date, closesAt: Date): string {
+  const opens = format(opensAt, "EEE d MMM, HH:mm");
+  const closes = isSameDay(opensAt, closesAt)
+    ? format(closesAt, "HH:mm")
+    : format(closesAt, "EEE d MMM, HH:mm");
+
+  return `${opens} → ${closes}`;
+}
 
 export function ScheduleList({ schedules, onDelete, isDeleting }: ScheduleListProps) {
   if (schedules.length === 0) {
@@ -55,38 +66,70 @@ export function ScheduleList({ schedules, onDelete, isDeleting }: ScheduleListPr
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {schedules.map((schedule) => (
-            <div
-              key={schedule.id}
-              className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border animate-fade-in"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
-                  {commandIcons[schedule.commandType]}
-                </div>
-                <div>
-                  <p className="font-medium">
-                    {commandLabels[schedule.commandType]}
-                    {schedule.commandType === DoorCommand.VENT && schedule.targetPercentage && (
-                      <span className="text-primary ml-1">({schedule.targetPercentage}%)</span>
-                    )}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {schedule.executeAtUtc ? format(new Date(schedule.executeAtUtc), "PPp") : "—"}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => onDelete(schedule.id)}
-                disabled={isDeleting === schedule.id}
+          {schedules.map((entry) => {
+            // An auto-close is raised by the system, not created here, so it is shown for
+            // information and cannot be deleted from this list.
+            const isAutoClose = entry.kind === ScheduleEntryKind.AutoClose;
+
+            return (
+              <div
+                key={entry.id}
+                className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border animate-fade-in"
               >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                    {isAutoClose ? (
+                      <Timer className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      actionIcons[entry.commandType]
+                    )}
+                  </div>
+                  <div>
+                    {isAutoClose ? (
+                      <>
+                        <p className="font-medium flex items-center gap-2">
+                          Auto-close
+                          <Badge variant="outline" className="text-xs font-normal">
+                            automatic
+                          </Badge>
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Closes at {format(new Date(entry.closesAtUtc), "HH:mm:ss")}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium">
+                          {actionLabels[entry.commandType] ?? "Scheduled"}
+                          {entry.commandType === DoorCommand.VENT && entry.targetPercentage && (
+                            <span className="text-primary ml-1">({entry.targetPercentage}%)</span>
+                          )}
+                        </p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          {entry.opensAtUtc
+                            ? formatPeriod(new Date(entry.opensAtUtc), new Date(entry.closesAtUtc))
+                            : format(new Date(entry.closesAtUtc), "EEE d MMM, HH:mm")}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {!isAutoClose && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Delete schedule"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(entry.id)}
+                    disabled={isDeleting === entry.id}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>

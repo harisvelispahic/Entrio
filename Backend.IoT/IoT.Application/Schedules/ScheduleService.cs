@@ -23,45 +23,99 @@ public class ScheduleService : IScheduleService
         _createValidator = createValidator;
     }
 
-    public async Task<IReadOnlyList<Schedule>> GetUpcomingAsync(Guid deviceId, CancellationToken ct = default) =>
-        await _db.Schedules
+    public async Task<IReadOnlyList<ScheduleEntry>> GetUpcomingAsync(
+        Guid deviceId,
+        CancellationToken ct = default)
+    {
+        var pending = await _db.Schedules
             .AsNoTracking()
             .Where(s => s.DeviceId == deviceId && s.IsActive && !s.WasTriggered)
-            .OrderBy(s => s.ExecuteAtUtc)
             .ToListAsync(ct);
 
-    public async Task<Schedule> CreateAsync(
+        // A user period is two rows sharing a group id; collapse it into one entry so the
+        // list shows "Open 14:00 until 15:00" rather than two unrelated-looking lines.
+        var periods = pending
+            .Where(s => s.ScheduleGroupId.HasValue)
+            .GroupBy(s => s.ScheduleGroupId!.Value)
+            .Select(group => BuildPeriod(group.Key, group.ToList()))
+            .Where(entry => entry is not null)
+            .Select(entry => entry!);
+
+        // Rows with no group are system-raised; currently that means auto-close only.
+        var autoCloses = pending
+            .Where(s => !s.ScheduleGroupId.HasValue)
+            .Select(s => new ScheduleEntry(
+                s.Id,
+                ScheduleEntryKind.AutoClose,
+                s.CommandType,
+                s.TargetPercentage,
+                OpensAtUtc: null,
+                s.ExecuteAtUtc));
+
+        return periods.Concat(autoCloses)
+            .OrderBy(entry => entry.OpensAtUtc ?? entry.ClosesAtUtc)
+            .ToList();
+    }
+
+    public async Task<ScheduleEntry> CreateAsync(
         Guid deviceId,
         CreateScheduleRequest request,
         CancellationToken ct = default)
     {
         await _createValidator.ValidateAndThrowAsync(request, ct);
 
-        var schedule = new Schedule
+        var groupId = Guid.NewGuid();
+
+        var open = new Schedule
         {
             Id = Guid.NewGuid(),
             DeviceId = deviceId,
+            ScheduleGroupId = groupId,
             CommandType = request.CommandType,
             TargetPercentage = request.CommandType == DeviceCommandType.Vent
                 ? request.TargetPercentage
                 : null,
-            ExecuteAtUtc = request.ExecuteAtUtc,
+            ExecuteAtUtc = request.OpensAtUtc,
             IsActive = true,
             WasTriggered = false
         };
 
-        _db.Schedules.Add(schedule);
+        var close = new Schedule
+        {
+            Id = Guid.NewGuid(),
+            DeviceId = deviceId,
+            ScheduleGroupId = groupId,
+            CommandType = DeviceCommandType.Close,
+            TargetPercentage = null,
+            ExecuteAtUtc = request.ClosesAtUtc,
+            IsActive = true,
+            WasTriggered = false
+        };
+
+        _db.Schedules.AddRange(open, close);
         await _db.SaveChangesAsync(ct);
 
-        return schedule;
+        return new ScheduleEntry(
+            groupId,
+            ScheduleEntryKind.Period,
+            open.CommandType,
+            open.TargetPercentage,
+            open.ExecuteAtUtc,
+            close.ExecuteAtUtc);
     }
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid groupId, CancellationToken ct = default)
     {
-        var schedule = await _db.Schedules.FirstOrDefaultAsync(s => s.Id == id, ct)
-            ?? throw new NotFoundException("Schedule not found.");
+        var rows = await _db.Schedules
+            .Where(s => s.ScheduleGroupId == groupId)
+            .ToListAsync(ct);
 
-        _db.Schedules.Remove(schedule);
+        if (rows.Count == 0)
+            throw new NotFoundException("Schedule not found.");
+
+        // Both halves go together: a period whose close was deleted would leave the door
+        // open indefinitely, which is the thing the pairing exists to prevent.
+        _db.Schedules.RemoveRange(rows);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -93,5 +147,27 @@ public class ScheduleService : IScheduleService
         await _db.SaveChangesAsync(ct);
 
         return due.Count;
+    }
+
+    /// <summary>
+    /// Turns the rows of one group into a single entry. Returns null once the opening half
+    /// has already fired, because a period whose close is all that remains is no longer
+    /// something the user can meaningfully act on.
+    /// </summary>
+    private static ScheduleEntry? BuildPeriod(Guid groupId, List<Schedule> rows)
+    {
+        var open = rows.FirstOrDefault(s => s.CommandType != DeviceCommandType.Close);
+        var close = rows.FirstOrDefault(s => s.CommandType == DeviceCommandType.Close);
+
+        if (open is null || close is null)
+            return null;
+
+        return new ScheduleEntry(
+            groupId,
+            ScheduleEntryKind.Period,
+            open.CommandType,
+            open.TargetPercentage,
+            open.ExecuteAtUtc,
+            close.ExecuteAtUtc);
     }
 }

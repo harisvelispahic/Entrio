@@ -11,5 +11,11 @@ public class ScheduleConfiguration : IEntityTypeConfiguration<Schedule>
         builder.ToTable("Schedules");
 
         builder.HasKey(x => x.Id);
+
+        // Every listing and delete goes via the group, so this is on the hot path.
+        builder.HasIndex(x => x.ScheduleGroupId);
+
+        // The worker polls this combination every 5 seconds.
+        builder.HasIndex(x => new { x.DeviceId, x.IsActive, x.WasTriggered });
     }
 }

@@ -1,6 +1,5 @@
 using IoT.Application.Devices;
 using IoT.Application.Schedules;
-using IoT.Domain.Entities.Devices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,41 +20,29 @@ public class SchedulesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateScheduleRequest request, CancellationToken ct)
+    public async Task<ActionResult<ScheduleEntry>> Create(
+        [FromBody] CreateScheduleRequest request,
+        CancellationToken ct)
     {
         var device = await _devices.GetAsync(ct);
 
-        var schedule = await _schedules.CreateAsync(device.Id, request, ct);
-
-        return Ok(ToResponse(schedule));
+        return Ok(await _schedules.CreateAsync(device.Id, request, ct));
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetSchedules(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<ScheduleEntry>>> GetSchedules(CancellationToken ct)
     {
         var device = await _devices.GetAsync(ct);
-        var schedules = await _schedules.GetUpcomingAsync(device.Id, ct);
 
-        return Ok(schedules.Select(ToResponse));
+        return Ok(await _schedules.GetUpcomingAsync(device.Id, ct));
     }
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    /// <summary>Deletes a scheduled period by its group id, removing both halves.</summary>
+    [HttpDelete("{groupId:guid}")]
+    public async Task<IActionResult> Delete(Guid groupId, CancellationToken ct)
     {
-        await _schedules.DeleteAsync(id, ct);
+        await _schedules.DeleteAsync(groupId, ct);
 
         return NoContent();
     }
-
-    /// <summary>Explicit projection so the API shape does not drift with the entity.</summary>
-    private static object ToResponse(Schedule schedule) => new
-    {
-        id = schedule.Id,
-        deviceId = schedule.DeviceId,
-        commandType = (int)schedule.CommandType,
-        targetPercentage = schedule.TargetPercentage,
-        executeAtUtc = schedule.ExecuteAtUtc,
-        isActive = schedule.IsActive,
-        wasTriggered = schedule.WasTriggered
-    };
 }

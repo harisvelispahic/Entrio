@@ -125,6 +125,13 @@ raw exception. Do not use `return BadRequest(...)`/`Problem(...)` in new code.
   Device endpoints resolve the device from its `X-Device-Key` via
   `HttpContext.Items["Device"]`, never from a body field, so an authenticated device
   can only ever act as itself. The firmware still sends `deviceId`; it is ignored.
+- **A user schedule is TWO rows sharing a `ScheduleGroupId`**: the Open or Vent and the
+  Close that must follow it. `ScheduleGroupId == null` means the row is system-raised
+  (currently only auto-close), and that distinction is load-bearing: `ArmAsync`
+  supersedes only null-group rows. It used to deactivate every pending row, so arming
+  auto-close silently cancelled the user's own schedules.
+- **Only Open and Vent are schedulable.** A bare Close is not a user action (auto-close
+  covers the safety case) and Stop is meaningless on a stationary door.
 - **Seeding is the only way rows get created.** There is no `HasData` anywhere; a
   fresh database with no seed means no login and 401 on every device call.
   `DatabaseSeeder` is idempotent and skips existing rows.

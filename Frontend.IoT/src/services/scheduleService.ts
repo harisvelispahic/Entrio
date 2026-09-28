@@ -1,42 +1,38 @@
 import { api } from "./api";
-import { DoorCommand, Schedule } from "@/config/api";
+import { DoorCommand, ScheduleEntry } from "@/config/api";
 import { env } from "@/config/env";
 import { demoBackend } from "./demoBackend";
 
 export interface CreateScheduleRequest {
-  command: DoorCommand;
+  commandType: DoorCommand;
+  /** Required for Vent, ignored otherwise. */
+  targetPercentage?: number | null;
   /** ISO-8601 UTC instant. */
-  executeAtUtc: string;
-  percentage?: number;
+  opensAtUtc: string;
+  /** ISO-8601 UTC instant, after opensAtUtc. */
+  closesAtUtc: string;
 }
 
 export const scheduleService = {
-  getSchedules(): Promise<Schedule[]> {
+  getSchedules(): Promise<ScheduleEntry[]> {
     if (env.demoMode) return Promise.resolve(demoBackend.getSchedules());
 
-    return api.get<Schedule[]>("/schedules");
+    return api.get<ScheduleEntry[]>("/schedules");
   },
 
-  createSchedule(schedule: CreateScheduleRequest): Promise<Schedule> {
-    if (env.demoMode) {
-      return Promise.resolve(
-        demoBackend.createSchedule(schedule.command, schedule.executeAtUtc, schedule.percentage),
-      );
-    }
+  createSchedule(request: CreateScheduleRequest): Promise<ScheduleEntry> {
+    if (env.demoMode) return Promise.resolve(demoBackend.createSchedule(request));
 
-    return api.post<Schedule>("/schedules", {
-      commandType: schedule.command,
-      targetPercentage: schedule.percentage ?? null,
-      executeAtUtc: schedule.executeAtUtc,
-    });
+    return api.post<ScheduleEntry>("/schedules", request);
   },
 
-  deleteSchedule(id: string): Promise<void> {
+  /** Deletes a period by its group id, which removes both halves. */
+  deleteSchedule(groupId: string): Promise<void> {
     if (env.demoMode) {
-      demoBackend.deleteSchedule(id);
+      demoBackend.deleteSchedule(groupId);
       return Promise.resolve();
     }
 
-    return api.delete(`/schedules/${id}`);
+    return api.delete(`/schedules/${groupId}`);
   },
 };

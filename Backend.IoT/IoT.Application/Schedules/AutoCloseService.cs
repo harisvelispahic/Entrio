@@ -50,12 +50,15 @@ public class AutoCloseService : IAutoCloseService
 
         // Supersede any pending auto-close, so re-opening restarts the countdown rather
         // than leaving an older, earlier close still armed.
-        await DeactivatePendingAsync(deviceId, ct);
+        await DeactivatePendingAutoCloseAsync(deviceId, ct);
 
         _db.Schedules.Add(new Schedule
         {
             Id = Guid.NewGuid(),
             DeviceId = deviceId,
+            // No group: this is system-raised, not half of a user period. That is what
+            // keeps it out of the user's schedule list and out of their deletes.
+            ScheduleGroupId = null,
             CommandType = DeviceCommandType.Close,
             TargetPercentage = null,
             // Measured from now, which is when the door finished opening: the event that
@@ -70,14 +73,24 @@ public class AutoCloseService : IAutoCloseService
 
     public async Task CancelPendingAsync(Guid deviceId, CancellationToken ct = default)
     {
-        await DeactivatePendingAsync(deviceId, ct);
+        await DeactivatePendingAutoCloseAsync(deviceId, ct);
         await _db.SaveChangesAsync(ct);
     }
 
-    private async Task DeactivatePendingAsync(Guid deviceId, CancellationToken ct)
+    /// <summary>
+    /// Deactivates pending AUTO-CLOSE rows only, identified by having no schedule group.
+    ///
+    /// This used to deactivate every pending row for the device, so arming auto-close
+    /// silently cancelled the user's own schedules: create an Open for tomorrow, open the
+    /// door once with auto-close enabled, and tomorrow's schedule was gone.
+    /// </summary>
+    private async Task DeactivatePendingAutoCloseAsync(Guid deviceId, CancellationToken ct)
     {
         var pending = await _db.Schedules
-            .Where(s => s.DeviceId == deviceId && s.IsActive && !s.WasTriggered)
+            .Where(s => s.DeviceId == deviceId
+                        && s.ScheduleGroupId == null
+                        && s.IsActive
+                        && !s.WasTriggered)
             .ToListAsync(ct);
 
         foreach (var schedule in pending)

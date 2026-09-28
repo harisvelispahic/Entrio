@@ -41,14 +41,25 @@ export interface DoorStatus {
   lastUpdated?: string;
 }
 
-export interface Schedule {
+/** Mirrors ScheduleEntryKind on the API. */
+export enum ScheduleEntryKind {
+  Period = 0,
+  AutoClose = 1,
+}
+
+/**
+ * One row in the schedules list. A user-created period collapses its two underlying
+ * rows into a single entry keyed by group id; a pending auto-close arrives as its own
+ * entry and is not deletable.
+ */
+export interface ScheduleEntry {
   id: string;
-  deviceId: string;
+  kind: ScheduleEntryKind;
   commandType: DoorCommand;
-  targetPercentage?: number;
-  executeAtUtc: string;
-  isActive: boolean;
-  wasTriggered: boolean;
+  targetPercentage?: number | null;
+  /** Null for an auto-close, which has no opening half. */
+  opensAtUtc: string | null;
+  closesAtUtc: string;
 }
 
 export interface DoorEvent {

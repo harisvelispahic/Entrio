@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { env } from "@/config/env";
+import { eventSourceLabel } from "@/config/eventLabels";
 import { demoBackend } from "./demoBackend";
 
 const openClosedColors: Record<string, string> = {
@@ -41,6 +42,9 @@ export const analyticsService = {
       })),
       eventSources: raw.eventSources.map((x) => ({
         ...x,
+        // Colour is looked up by the raw enum name, but the slice is LABELLED with the
+        // readable one -- so the chart legend matches the events table.
+        name: eventSourceLabel(x.name),
         color: sourceColors[x.name] ?? fallbackColor,
       })),
     };

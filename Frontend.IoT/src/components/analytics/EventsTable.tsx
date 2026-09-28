@@ -1,4 +1,10 @@
 import { DoorEvent } from "@/config/api";
+import {
+  EVENT_SOURCE_BADGE,
+  EVENT_SOURCE_BADGE_FALLBACK,
+  eventSourceLabel,
+  eventTypeLabel,
+} from "@/config/eventLabels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +15,6 @@ import { format } from "date-fns";
 interface EventsTableProps {
   events: DoorEvent[];
 }
-
-const sourceColors: Record<string, string> = {
-  RFID: "bg-primary/20 text-primary border-primary/30",
-  Web: "bg-accent/20 text-accent border-accent/30",
-  Schedule: "bg-success/20 text-success border-success/30",
-  Manual: "bg-muted text-muted-foreground border-border",
-};
 
 export function EventsTable({ events }: EventsTableProps) {
   return (
@@ -43,10 +42,13 @@ export function EventsTable({ events }: EventsTableProps) {
                   <TableCell className="font-mono text-sm text-muted-foreground">
                     {format(new Date(event.timestamp), "MMM d, HH:mm")}
                   </TableCell>
-                  <TableCell className="font-medium">{event.eventType}</TableCell>
+                  <TableCell className="font-medium">{eventTypeLabel(event.eventType)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={sourceColors[event.source] || sourceColors.Manual}>
-                      {event.source}
+                    <Badge
+                      variant="outline"
+                      className={EVENT_SOURCE_BADGE[event.source] ?? EVENT_SOURCE_BADGE_FALLBACK}
+                    >
+                      {eventSourceLabel(event.source)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{event.details || "—"}</TableCell>

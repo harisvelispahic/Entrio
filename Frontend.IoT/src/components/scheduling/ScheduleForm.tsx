@@ -1,108 +1,142 @@
 import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CalendarPlus, Loader2, AlertCircle } from 'lucide-react';
 import { DoorCommand } from '@/config/api';
-import { CalendarPlus, Loader2 } from 'lucide-react';
+import { DateTimePicker } from './DateTimePicker';
 
 interface ScheduleFormProps {
-  onSubmit: (command: DoorCommand, scheduledAt: string, percentage?: number) => Promise<void>;
+  onSubmit: (
+    command: DoorCommand,
+    opensAtUtc: string,
+    closesAtUtc: string,
+    percentage?: number,
+  ) => Promise<void>;
   isLoading: boolean;
 }
 
 export function ScheduleForm({ onSubmit, isLoading }: ScheduleFormProps) {
   const [command, setCommand] = useState<string>('');
-  const [dateTime, setDateTime] = useState('');
+  const [opensAt, setOpensAt] = useState<Date | null>(null);
+  const [closesAt, setClosesAt] = useState<Date | null>(null);
   const [percentage, setPercentage] = useState(50);
+  const [error, setError] = useState('');
+
+  const isVent = command === String(DoorCommand.VENT);
+  const now = new Date();
+
+  const validate = (): string => {
+    if (!command) return 'Choose what the door should do.';
+    if (!opensAt) return 'Choose when the door opens.';
+    if (!closesAt) return 'Choose when the door closes.';
+    if (opensAt <= now) return 'The opening time must be in the future.';
+    if (closesAt <= opensAt) return 'The closing time must be after the opening time.';
+
+    return '';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!command || !dateTime) return;
 
-    const commandNum = parseInt(command) as DoorCommand;
-    const isoDateTime = new Date(dateTime).toISOString();
-    
+    const message = validate();
+    setError(message);
+
+    if (message) return;
+
+    const commandNum = parseInt(command, 10) as DoorCommand;
+
+    // The single point where local time becomes a UTC instant. toISOString uses the
+    // offset actually in force on the chosen date, so DST is handled here for free.
     await onSubmit(
       commandNum,
-      isoDateTime,
-      commandNum === DoorCommand.VENT ? percentage : undefined
+      opensAt!.toISOString(),
+      closesAt!.toISOString(),
+      commandNum === DoorCommand.VENT ? percentage : undefined,
     );
 
-    // Reset form
     setCommand('');
-    setDateTime('');
+    setOpensAt(null);
+    setClosesAt(null);
     setPercentage(50);
   };
-
-  const isVent = command === String(DoorCommand.VENT);
-  // datetime-local works in LOCAL time, so the minimum must be local too. Using
-  // toISOString() here put the floor in the past by the UTC offset.
-  const now = new Date();
-  const minDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 16);
 
   return (
     <Card className="industrial-border">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <CalendarPlus className="h-5 w-5 text-primary" />
-          Create Schedule
+          New Schedule
         </CardTitle>
+        <CardDescription>
+          Schedule a period with the door open. A closing time is required, so the door is
+          never left open by a forgotten schedule.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="command">Command</Label>
+            <Label htmlFor="command">Action</Label>
+            {/* Only Open and Vent: a bare Close is not a user action, and Stop makes no
+                sense on a door that is not moving. */}
             <Select value={command} onValueChange={setCommand}>
-              <SelectTrigger className="bg-secondary/50">
-                <SelectValue placeholder="Select command" />
+              <SelectTrigger id="command" className="bg-secondary/50">
+                <SelectValue placeholder="Select an action" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={String(DoorCommand.OPEN)}>Open Door</SelectItem>
-                <SelectItem value={String(DoorCommand.CLOSE)}>Close Door</SelectItem>
-                <SelectItem value={String(DoorCommand.STOP)}>Stop Door</SelectItem>
                 <SelectItem value={String(DoorCommand.VENT)}>Ventilate</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="datetime">Schedule Time</Label>
-            <Input
-              id="datetime"
-              type="datetime-local"
-              value={dateTime}
-              onChange={(e) => setDateTime(e.target.value)}
-              min={minDateTime}
-              className="bg-secondary/50"
-            />
-          </div>
-
           {isVent && (
-            <div className="space-y-3 p-3 rounded-lg bg-secondary/30 animate-fade-in">
-              <div className="flex justify-between">
-                <Label>Vent Percentage</Label>
-                <span className="text-sm font-mono text-primary">{percentage}%</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="percentage">Vent opening</Label>
+                <span className="font-mono text-sm text-primary">{percentage}%</span>
               </div>
               <Slider
-                value={[percentage]}
-                onValueChange={(v) => setPercentage(v[0])}
+                id="percentage"
                 min={1}
                 max={99}
                 step={1}
+                value={[percentage]}
+                onValueChange={([next]) => setPercentage(next)}
+                disabled={isLoading}
               />
             </div>
           )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isLoading || !command || !dateTime}
-          >
+          <DateTimePicker
+            id="opens-at"
+            label="Opens at"
+            value={opensAt}
+            onChange={setOpensAt}
+            min={now}
+            disabled={isLoading}
+          />
+
+          <DateTimePicker
+            id="closes-at"
+            label="Closes at"
+            value={closesAt}
+            onChange={setClosesAt}
+            min={opensAt ?? now}
+            disabled={isLoading}
+          />
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

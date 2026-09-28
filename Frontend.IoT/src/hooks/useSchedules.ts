@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { scheduleService } from "@/services/scheduleService";
-import { DoorCommand, Schedule } from "@/config/api";
+import { DoorCommand, ScheduleEntry } from "@/config/api";
 import { toast } from "@/hooks/use-toast";
 
-/** Chronological, soonest first. */
-function byExecuteAt(a: Schedule, b: Schedule): number {
-  return new Date(a.executeAtUtc).getTime() - new Date(b.executeAtUtc).getTime();
+/** Chronological, soonest first. An auto-close has no opening half, so it sorts by its close. */
+function byStart(a: ScheduleEntry, b: ScheduleEntry): number {
+  const at = new Date(a.opensAtUtc ?? a.closesAtUtc).getTime();
+  const bt = new Date(b.opensAtUtc ?? b.closesAtUtc).getTime();
+
+  return at - bt;
 }
 
 export function useSchedules() {
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -20,7 +23,7 @@ export function useSchedules() {
 
     try {
       const data = await scheduleService.getSchedules();
-      setSchedules([...data].sort(byExecuteAt));
+      setSchedules([...data].sort(byStart));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load schedules");
@@ -34,12 +37,23 @@ export function useSchedules() {
   }, [fetchSchedules]);
 
   const createSchedule = useCallback(
-    async (command: DoorCommand, executeAtUtc: string, percentage?: number) => {
+    async (
+      commandType: DoorCommand,
+      opensAtUtc: string,
+      closesAtUtc: string,
+      percentage?: number,
+    ) => {
       setIsCreating(true);
 
       try {
-        const created = await scheduleService.createSchedule({ command, executeAtUtc, percentage });
-        setSchedules((prev) => [...prev, created].sort(byExecuteAt));
+        const created = await scheduleService.createSchedule({
+          commandType,
+          opensAtUtc,
+          closesAtUtc,
+          targetPercentage: percentage ?? null,
+        });
+
+        setSchedules((prev) => [...prev, created].sort(byStart));
 
         toast({
           title: "Schedule Created",
@@ -58,12 +72,12 @@ export function useSchedules() {
     [],
   );
 
-  const deleteSchedule = useCallback(async (id: string) => {
-    setIsDeleting(id);
+  const deleteSchedule = useCallback(async (groupId: string) => {
+    setIsDeleting(groupId);
 
     try {
-      await scheduleService.deleteSchedule(id);
-      setSchedules((prev) => prev.filter((s) => s.id !== id));
+      await scheduleService.deleteSchedule(groupId);
+      setSchedules((prev) => prev.filter((s) => s.id !== groupId));
 
       toast({ title: "Schedule Deleted", description: "Your schedule has been deleted." });
     } catch (err) {
