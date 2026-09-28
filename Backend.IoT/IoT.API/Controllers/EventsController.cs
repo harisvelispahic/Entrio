@@ -1,7 +1,6 @@
-﻿using IoT.Application.Common;
+using IoT.Application.Devices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace IoT.API.Controllers;
 
@@ -10,29 +9,25 @@ namespace IoT.API.Controllers;
 [Authorize]
 public class EventsController : ControllerBase
 {
-    private readonly IAppDbContext _db;
+    private readonly IDeviceEventService _events;
 
-    public EventsController(IAppDbContext db)
+    public EventsController(IDeviceEventService events)
     {
-        _db = db;
+        _events = events;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetEvents(CancellationToken ct)
     {
-        var events = await _db.DeviceEvents
-            .OrderByDescending(e => e.OccurredAtUtc)
-            .Take(200) // avoid dumping database
-            .Select(e => new
-            {
-                id = e.Id,
-                eventType = e.EventType.ToString(),
-                source = e.Source.ToString(),
-                timestamp = e.OccurredAtUtc,
-                details = e.Details
-            })
-            .ToListAsync(ct);
+        var events = await _events.GetRecentAsync(ct: ct);
 
-        return Ok(events);
+        return Ok(events.Select(e => new
+        {
+            id = e.Id,
+            eventType = e.EventType.ToString(),
+            source = e.Source.ToString(),
+            timestamp = e.OccurredAtUtc,
+            details = e.Details
+        }));
     }
 }

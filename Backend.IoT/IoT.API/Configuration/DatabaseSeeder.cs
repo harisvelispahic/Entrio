@@ -58,7 +58,15 @@ public static class DatabaseSeeder
             return;
 
         var (hash, salt) = hasher.Hash(OwnerPassword);
-        db.OwnerAccounts.Add(new OwnerAccountEntity(OwnerEmail, hash, salt));
+
+        db.OwnerAccounts.Add(new OwnerAccount
+        {
+            Id = Guid.NewGuid(),
+            Email = OwnerEmail,
+            PasswordHash = hash,
+            PasswordSalt = salt,
+            CreatedAtUtc = DateTime.UtcNow
+        });
         await db.SaveChangesAsync();
 
         logger.LogInformation("Seeded owner account {Email}.", OwnerEmail);
@@ -84,17 +92,36 @@ public static class DatabaseSeeder
         }
 
         var (keyHash, keySalt) = hasher.Hash(deviceKey);
-        db.Devices.Add(new DeviceEntity("Garage Door", keyHash, keySalt, FirmwareDeviceId));
+
+        db.Devices.Add(new Device
+        {
+            Id = FirmwareDeviceId,
+            Name = "Garage Door",
+            DeviceKeyHash = keyHash,
+            DeviceKeySalt = keySalt,
+            LastSeenAtUtc = DateTime.UtcNow
+        });
 
         // A status row so the dashboard shows a closed door immediately, rather than
         // waiting for the device's first report.
-        db.DeviceStatuses.Add(new DeviceStatusEntity(FirmwareDeviceId));
+        db.DeviceStatuses.Add(new DeviceStatus
+        {
+            DeviceId = FirmwareDeviceId,
+            DoorState = DoorState.Closed,
+            PositionPercent = 0,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
 
         // Auto-close settings, disabled by default. Previously no row was ever created,
         // which meant AutoCloseService always returned early and the feature was dead
         // code. The dashboard toggle writes to this row.
-        db.AutoCloseSettings.Add(new AutoCloseSettingsEntity(
-            FirmwareDeviceId, enabled: false, afterSeconds: DefaultAutoCloseSeconds));
+        db.AutoCloseSettings.Add(new AutoCloseSettings
+        {
+            Id = Guid.NewGuid(),
+            DeviceId = FirmwareDeviceId,
+            Enabled = false,
+            AfterSeconds = DefaultAutoCloseSeconds
+        });
 
         await db.SaveChangesAsync();
 

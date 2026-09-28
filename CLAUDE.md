@@ -1,7 +1,34 @@
 # Entrio — notes for Claude
 
-IoT smart garage door system: ASP.NET Core 8 API (clean architecture + MediatR),
+IoT smart garage door system: ASP.NET Core 8 API (layered, service-per-area),
 React/Vite frontend, and ESP32 firmware. See `README.md` for how to run it.
+
+## Architecture
+
+Layered, not CQRS. MediatR was removed — do not reintroduce commands, queries or
+handlers.
+
+```
+IoT.Domain        entities only: plain property bags, no constructors, no methods
+                  that mutate state (`RefreshToken.IsActive` is a fact, not a mutation)
+IoT.Application   one service per area of work, each with an interface:
+                  Devices/ Doors/ Schedules/ Analytics/ Identity/ Common/
+IoT.Infrastructure  EF context, configurations, hashing, tokens, background worker
+IoT.API           thin controllers: HTTP mapping and projection only
+```
+
+Rules:
+- **Controllers hold no application logic.** No database access, no business rules,
+  no private helpers beyond a response projection. If a controller grows an `if`
+  that is not about HTTP, it belongs in a service.
+- **Entities are created and mutated in services**, with object initialisers. No
+  constructors, no `MarkX()` methods on entities.
+- **Business rules live in services**, not controllers — vent percentage, auto-close
+  range, future-dating. FluentValidation will add request-shape checks on top; it
+  does not replace these.
+- Every table name is pinned with `ToTable` in `Configurations/`, which is what makes
+  a CLR rename schema-neutral (see `RenameEntitiesDropEntitySuffix`, an empty
+  migration kept so the snapshot matches the renamed types).
 
 ## Configuration
 
@@ -70,12 +97,14 @@ raw exception. Do not use `return BadRequest(...)`/`Problem(...)` in new code.
 ## Things that are load-bearing
 
 - **Device GUID `0f8fad5b-d9cb-469f-a165-70867728950e`** is hardcoded in the
-  firmware's status payload and `DatabaseSeeder.FirmwareDeviceId`. Both must agree
-  or status posts fail. The frontend no longer knows it.
+  firmware's status payload and `DatabaseSeeder.FirmwareDeviceId`. Both must agree.
+  Device endpoints resolve the device from its `X-Device-Key` via
+  `HttpContext.Items["Device"]`, never from a body field, so an authenticated device
+  can only ever act as itself. The firmware still sends `deviceId`; it is ignored.
 - **Seeding is the only way rows get created.** There is no `HasData` anywhere; a
   fresh database with no seed means no login and 401 on every device call.
   `DatabaseSeeder` is idempotent and skips existing rows.
-- **The auto-close condition in `CreateDeviceEventCommandHandler`** treats a last
+- **The auto-close condition in `DeviceEventService.RecordAsync`** treats a last
   command of `Close` as non-suppressing. That clause was added deliberately in
   `62c035d` for RFID opens, which create no command row. Do not "simplify" it away.
 - **`import.meta.env` must never return for the API URL** — see the config section.

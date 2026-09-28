@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace IoT.Infrastructure.Database.Configurations;
 
-public class DeviceConfiguration : IEntityTypeConfiguration<DeviceEntity>
+public class DeviceConfiguration : IEntityTypeConfiguration<Device>
 {
-    public void Configure(EntityTypeBuilder<DeviceEntity> builder)
+    public void Configure(EntityTypeBuilder<Device> builder)
     {
         builder.ToTable("Devices");
 
@@ -18,7 +18,7 @@ public class DeviceConfiguration : IEntityTypeConfiguration<DeviceEntity>
 
         builder.HasOne(x => x.Status)
             .WithOne()
-            .HasForeignKey<DeviceStatusEntity>(x => x.DeviceId);
+            .HasForeignKey<DeviceStatus>(x => x.DeviceId);
 
         builder.HasMany(x => x.Commands)
             .WithOne()

@@ -1,10 +1,11 @@
 using IoT.API.Configuration;
 using IoT.API.Middleware;
+using IoT.Application.Analytics;
 using IoT.Application.Common;
 using IoT.Application.Devices;
-using IoT.Application.Devices.Events;
-using IoT.Application.Devices.Services;
+using IoT.Application.Doors;
 using IoT.Application.Identity;
+using IoT.Application.Schedules;
 using IoT.Infrastructure.Background;
 using IoT.Infrastructure.Database;
 using IoT.Infrastructure.Identity;
@@ -99,9 +100,6 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(CreateDeviceEventCommand).Assembly));
-
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseSqlServer(connectionString);
@@ -128,11 +126,20 @@ builder.Services.AddAuthentication("Bearer")
 
 builder.Services.AddAuthorization();
 
+// Identity
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<IDeviceAuthenticator, DeviceAuthenticator>();
-builder.Services.AddScoped<AutoCloseService>();
+
+// Application services, one per area of work.
+builder.Services.AddScoped<IDeviceService, DeviceService>();
+builder.Services.AddScoped<IDeviceCommandService, DeviceCommandService>();
+builder.Services.AddScoped<IDeviceEventService, DeviceEventService>();
+builder.Services.AddScoped<IDeviceStatusService, DeviceStatusService>();
+builder.Services.AddScoped<IDoorService, DoorService>();
+builder.Services.AddScoped<IScheduleService, ScheduleService>();
+builder.Services.AddScoped<IAutoCloseService, AutoCloseService>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 
 builder.Services.AddHostedService<ScheduleWorker>();
 

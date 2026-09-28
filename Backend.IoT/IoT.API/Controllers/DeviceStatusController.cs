@@ -1,8 +1,7 @@
-﻿using IoT.API.Security;
-using IoT.Application.Common;
+using IoT.API.Security;
+using IoT.Application.Devices;
 using IoT.Domain.Entities.Devices;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace IoT.API.Controllers;
 
@@ -10,50 +9,35 @@ namespace IoT.API.Controllers;
 [Route("api/device/status")]
 public class DeviceStatusController : ControllerBase
 {
-    private readonly IAppDbContext _db;
+    private readonly IDeviceStatusService _statuses;
 
-    public DeviceStatusController(IAppDbContext db)
+    public DeviceStatusController(IDeviceStatusService statuses)
     {
-        _db = db;
+        _statuses = statuses;
+    }
+
+    public sealed class UpdateStatusRequest
+    {
+        public DoorState DoorState { get; init; }
+        public int PositionPercent { get; init; }
+        public bool ObstacleDetected { get; init; }
     }
 
     [DeviceAuthorize]
     [HttpPost]
-    public async Task<IActionResult> UpdateStatus(
-        [FromBody] UpdateStatusRequest request,
-        CancellationToken ct)
+    public async Task<IActionResult> UpdateStatus([FromBody] UpdateStatusRequest request, CancellationToken ct)
     {
-        var deviceExists = await _db.Devices
-            .AnyAsync(d => d.Id == request.DeviceId, ct);
+        // The device is resolved from its key, not from a deviceId in the body: an
+        // authenticated device can only ever report its own status.
+        var device = (Device)HttpContext.Items["Device"]!;
 
-        if (!deviceExists)
-            return BadRequest("Unknown device.");
-
-        var status = await _db.DeviceStatuses
-            .SingleOrDefaultAsync(s => s.DeviceId == request.DeviceId, ct);
-
-        if (status == null)
-        {
-            status = new DeviceStatusEntity(request.DeviceId);
-            _db.DeviceStatuses.Add(status);
-        }
-
-        status.Update(
+        await _statuses.UpdateAsync(
+            device.Id,
             request.DoorState,
             request.PositionPercent,
-            request.ObstacleDetected
-        );
-
-        await _db.SaveChangesAsync(ct);
+            request.ObstacleDetected,
+            ct);
 
         return NoContent();
     }
-}
-
-public class UpdateStatusRequest
-{
-    public Guid DeviceId { get; init; }
-    public DoorState DoorState { get; init; }
-    public int PositionPercent { get; init; }
-    public bool ObstacleDetected { get; init; }
 }

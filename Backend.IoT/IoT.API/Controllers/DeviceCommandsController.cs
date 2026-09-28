@@ -1,87 +1,36 @@
-﻿using IoT.API.Security;
-using IoT.Application.Common;
-using IoT.Application.Devices.Commands.GetPending;
+using IoT.API.Security;
+using IoT.Application.Devices;
 using IoT.Domain.Entities.Devices;
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace IoT.API.Controllers;
 
-[Route("api/device/commands")]
+/// <summary>
+/// The controller-facing half of the command loop. The device polls for work and
+/// acknowledges it; nothing is ever pushed to the device.
+/// </summary>
 [ApiController]
+[Route("api/device/commands")]
 public class DeviceCommandsController : ControllerBase
 {
-    private readonly IAppDbContext _db;
-    private readonly IMediator _mediator;
+    private readonly IDeviceCommandService _commands;
 
-    public DeviceCommandsController(IAppDbContext db, IMediator mediator)
+    public DeviceCommandsController(IDeviceCommandService commands)
     {
-        _db = db;
-        _mediator = mediator;
+        _commands = commands;
     }
 
-    public sealed class SendDeviceCommandRequest
-    {
-        public DeviceCommandType Command { get; set; }
-        public int? Percentage { get; set; }
-    }
+    private Device CurrentDevice => (Device)HttpContext.Items["Device"]!;
 
-    // ============================
-    // POST command
-    // ============================
-    [DeviceAuthorize]
-    [HttpPost]
-    public async Task<IActionResult> SendCommand(
-        [FromBody] SendDeviceCommandRequest request,
-        CancellationToken ct)
-    {
-        var device = HttpContext.Items["Device"] as DeviceEntity;
-        if (device is null)
-            return Unauthorized();
-
-        // Vent validation
-        if (request.Command == DeviceCommandType.Vent)
-        {
-            if (request.Percentage is null or < 1 or > 99)
-                return BadRequest("Vent requires percentage 1–99.");
-        }
-
-        var command = new DeviceCommandEntity(
-            device.Id,
-            request.Command,
-            request.Command == DeviceCommandType.Vent ? request.Percentage : null
-        );
-
-        _db.DeviceCommands.Add(command);
-        await _db.SaveChangesAsync(ct);
-
-        // 200 OK with command info
-        return Ok(new
-        {
-            id = command.Id,
-            commandType = (int)command.CommandType,
-            targetPercentage = command.TargetPercentage
-        });
-    }
-
-    // ============================
-    // GET pending command
-    // ============================
     [DeviceAuthorize]
     [HttpGet("pending")]
     public async Task<IActionResult> GetPending(CancellationToken ct)
     {
-        var device = HttpContext.Items["Device"] as DeviceEntity;
-        if (device == null)
-            return Unauthorized();
+        var command = await _commands.GetPendingAsync(CurrentDevice.Id, ct);
 
-        var command = await _mediator.Send(
-            new GetPendingDeviceCommandQuery(device.Id),
-            ct);
-
-        if (command == null)
-            return NoContent(); // 204
+        // 204 rather than an empty body: the firmware branches on the status code.
+        if (command is null)
+            return NoContent();
 
         return Ok(new
         {
@@ -91,26 +40,11 @@ public class DeviceCommandsController : ControllerBase
         });
     }
 
-    // ============================
-    // POST ack
-    // ============================
     [DeviceAuthorize]
     [HttpPost("{id:guid}/ack")]
-    public async Task<IActionResult> Ack(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Acknowledge(Guid id, CancellationToken ct)
     {
-        var device = HttpContext.Items["Device"] as DeviceEntity;
-        if (device == null)
-            return Unauthorized();
-
-        var cmd = await _db.DeviceCommands
-            .Where(x => x.DeviceId == device.Id && x.Id == id)
-            .FirstOrDefaultAsync(ct);
-
-        if (cmd == null)
-            return NotFound();
-
-        cmd.MarkAcknowledged();
-        await _db.SaveChangesAsync(ct);
+        await _commands.AcknowledgeAsync(CurrentDevice.Id, id, ct);
 
         return Ok();
     }

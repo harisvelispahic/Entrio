@@ -1,4 +1,4 @@
-﻿using IoT.API.Security;
+using IoT.API.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IoT.API.Controllers;
@@ -7,12 +7,8 @@ namespace IoT.API.Controllers;
 [Route("api/device")]
 public class DeviceController : ControllerBase
 {
+    /// <summary>Connectivity check for the controller. The attribute does the work.</summary>
     [DeviceAuthorize]
     [HttpPost("ping")]
-    public IActionResult Ping(
-    [FromHeader(Name = "X-Device-Key")] string deviceKey)
-    {
-        return Ok("DEVICE AUTH OK");
-    }
-
+    public IActionResult Ping() => Ok("DEVICE AUTH OK");
 }

@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace IoT.Infrastructure.Database.Configurations;
 
-public class ScheduleConfiguration : IEntityTypeConfiguration<ScheduleEntity>
+public class ScheduleConfiguration : IEntityTypeConfiguration<Schedule>
 {
-    public void Configure(EntityTypeBuilder<ScheduleEntity> builder)
+    public void Configure(EntityTypeBuilder<Schedule> builder)
     {
         builder.ToTable("Schedules");
 

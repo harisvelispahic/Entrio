@@ -13,16 +13,16 @@ public class AppDbContext : DbContext, IAppDbContext
     }
 
     // Identity
-    public DbSet<OwnerAccountEntity> OwnerAccounts => Set<OwnerAccountEntity>();
-    public DbSet<RefreshTokenEntity> RefreshTokens => Set<RefreshTokenEntity>();
+    public DbSet<OwnerAccount> OwnerAccounts => Set<OwnerAccount>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     // Devices
-    public DbSet<DeviceEntity> Devices => Set<DeviceEntity>();
-    public DbSet<DeviceStatusEntity> DeviceStatuses => Set<DeviceStatusEntity>();
-    public DbSet<DeviceCommandEntity> DeviceCommands => Set<DeviceCommandEntity>();
-    public DbSet<DeviceEventEntity> DeviceEvents => Set<DeviceEventEntity>();
-    public DbSet<ScheduleEntity> Schedules => Set<ScheduleEntity>();
-    public DbSet<AutoCloseSettingsEntity> AutoCloseSettings => Set<AutoCloseSettingsEntity>();
+    public DbSet<Device> Devices => Set<Device>();
+    public DbSet<DeviceStatus> DeviceStatuses => Set<DeviceStatus>();
+    public DbSet<DeviceCommand> DeviceCommands => Set<DeviceCommand>();
+    public DbSet<DeviceEvent> DeviceEvents => Set<DeviceEvent>();
+    public DbSet<Schedule> Schedules => Set<Schedule>();
+    public DbSet<AutoCloseSettings> AutoCloseSettings => Set<AutoCloseSettings>();
 
 
 
@@ -30,14 +30,7 @@ public class AppDbContext : DbContext, IAppDbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Every entity is configured by an IEntityTypeConfiguration in Configurations/.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
-
-        modelBuilder.Entity<AutoCloseSettingsEntity>()
-            .HasOne<DeviceEntity>()
-            .WithOne()
-            .HasForeignKey<AutoCloseSettingsEntity>(x => x.DeviceId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-
     }
 }

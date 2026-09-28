@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace IoT.Infrastructure.Database.Configurations;
 
-public class OwnerAccountConfiguration : IEntityTypeConfiguration<OwnerAccountEntity>
+public class OwnerAccountConfiguration : IEntityTypeConfiguration<OwnerAccount>
 {
-    public void Configure(EntityTypeBuilder<OwnerAccountEntity> builder)
+    public void Configure(EntityTypeBuilder<OwnerAccount> builder)
     {
         builder.ToTable("OwnerAccounts");
 

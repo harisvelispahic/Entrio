@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace IoT.Infrastructure.Database.Configurations;
 
-public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshTokenEntity>
+public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 {
-    public void Configure(EntityTypeBuilder<RefreshTokenEntity> builder)
+    public void Configure(EntityTypeBuilder<RefreshToken> builder)
     {
         builder.ToTable("RefreshTokens");
 
@@ -19,7 +19,7 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshTokenEn
         // Every refresh is a lookup by hash, so this index is on the hot path.
         builder.HasIndex(x => x.TokenHash).IsUnique();
 
-        builder.HasOne<OwnerAccountEntity>()
+        builder.HasOne<OwnerAccount>()
             .WithMany()
             .HasForeignKey(x => x.OwnerAccountId)
             .OnDelete(DeleteBehavior.Cascade);

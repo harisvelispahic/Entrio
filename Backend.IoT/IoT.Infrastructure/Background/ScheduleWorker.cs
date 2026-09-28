@@ -1,6 +1,4 @@
-﻿using IoT.Application.Common;
-using IoT.Domain.Entities.Devices;
-using Microsoft.EntityFrameworkCore;
+using IoT.Application.Schedules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -33,7 +31,13 @@ public class ScheduleWorker : BackgroundService
             // SQL blip must not take the API down with it, so every tick is isolated.
             try
             {
-                await RunOnceAsync(stoppingToken);
+                using var scope = _provider.CreateScope();
+                var schedules = scope.ServiceProvider.GetRequiredService<IScheduleService>();
+
+                var triggered = await schedules.TriggerDueAsync(stoppingToken);
+
+                if (triggered > 0)
+                    _logger.LogInformation("Triggered {Count} due schedule(s).", triggered);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -53,37 +57,5 @@ public class ScheduleWorker : BackgroundService
                 break;
             }
         }
-    }
-
-    private async Task RunOnceAsync(CancellationToken ct)
-    {
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
-
-        var nowUtc = DateTime.UtcNow;
-
-        var due = await db.Schedules
-            .Where(s => s.IsActive && !s.WasTriggered && s.ExecuteAtUtc <= nowUtc)
-            .ToListAsync(ct);
-
-        if (due.Count == 0)
-            return;
-
-        foreach (var schedule in due)
-        {
-            db.DeviceCommands.Add(new DeviceCommandEntity(
-                schedule.DeviceId,
-                schedule.CommandType,
-                schedule.CommandType == DeviceCommandType.Vent ? schedule.TargetPercentage : null,
-                // A scheduled action must not re-arm auto-close, or an auto-close would
-                // schedule the next one and the door would cycle forever.
-                suppressAutoClose: true));
-
-            schedule.MarkTriggered();
-        }
-
-        await db.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Triggered {Count} due schedule(s).", due.Count);
     }
 }

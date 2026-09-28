@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace IoT.Infrastructure.Database.Configurations;
 
-public class DeviceStatusConfiguration : IEntityTypeConfiguration<DeviceStatusEntity>
+public class DeviceStatusConfiguration : IEntityTypeConfiguration<DeviceStatus>
 {
-    public void Configure(EntityTypeBuilder<DeviceStatusEntity> builder)
+    public void Configure(EntityTypeBuilder<DeviceStatus> builder)
     {
         builder.ToTable("DeviceStatuses");
 

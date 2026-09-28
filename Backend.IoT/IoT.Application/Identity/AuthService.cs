@@ -33,7 +33,7 @@ public class AuthService
         if (owner is null || !_passwordHasher.Verify(request.Password ?? string.Empty, owner.PasswordHash, owner.PasswordSalt))
             throw new UnauthorizedException("Invalid email or password.");
 
-        owner.MarkLogin();
+        owner.LastLoginAtUtc = DateTime.UtcNow;
 
         return await IssueAndPersistAsync(owner, ct);
     }
@@ -55,7 +55,7 @@ public class AuthService
 
         // Rotation: the presented token is spent. A stolen token therefore works at most
         // once, and the theft surfaces the next time the real client tries to refresh.
-        stored.Revoke();
+        Revoke(stored);
 
         return await IssueAndPersistAsync(owner, ct);
     }
@@ -81,16 +81,34 @@ public class AuthService
             .ToListAsync(ct);
 
         foreach (var token in all)
-            token.Revoke();
+            Revoke(token);
 
         await _db.SaveChangesAsync(ct);
     }
 
-    private async Task<AuthResponse> IssueAndPersistAsync(OwnerAccountEntity owner, CancellationToken ct)
+    /// <summary>Idempotent: revoking an already-revoked token must not move its timestamp.</summary>
+    private static void Revoke(RefreshToken token)
+    {
+        if (token.IsRevoked)
+            return;
+
+        token.IsRevoked = true;
+        token.RevokedAtUtc = DateTime.UtcNow;
+    }
+
+    private async Task<AuthResponse> IssueAndPersistAsync(OwnerAccount owner, CancellationToken ct)
     {
         var pair = _tokens.IssueTokens(owner.Id, owner.Email);
 
-        _db.RefreshTokens.Add(new RefreshTokenEntity(owner.Id, pair.RefreshTokenHash, pair.RefreshTokenExpiresAtUtc));
+        _db.RefreshTokens.Add(new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            OwnerAccountId = owner.Id,
+            TokenHash = pair.RefreshTokenHash,
+            ExpiresAtUtc = pair.RefreshTokenExpiresAtUtc,
+            CreatedAtUtc = DateTime.UtcNow,
+            IsRevoked = false
+        });
 
         // Revoking the old token, marking the login and storing the new token all land in
         // one SaveChanges, so a failure cannot leave the account half-rotated.

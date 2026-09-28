@@ -7,16 +7,16 @@ namespace IoT.Application.Common;
 public interface IAppDbContext
 {
     // Identity
-    DbSet<OwnerAccountEntity> OwnerAccounts { get; }
-    DbSet<RefreshTokenEntity> RefreshTokens { get; }
+    DbSet<OwnerAccount> OwnerAccounts { get; }
+    DbSet<RefreshToken> RefreshTokens { get; }
 
     // Devices
-    DbSet<DeviceEntity> Devices { get; }
-    DbSet<DeviceStatusEntity> DeviceStatuses { get; }
-    DbSet<DeviceCommandEntity> DeviceCommands { get; }
-    DbSet<DeviceEventEntity> DeviceEvents { get; }
-    DbSet<ScheduleEntity> Schedules { get; }
-    DbSet<AutoCloseSettingsEntity> AutoCloseSettings { get; }
+    DbSet<Device> Devices { get; }
+    DbSet<DeviceStatus> DeviceStatuses { get; }
+    DbSet<DeviceCommand> DeviceCommands { get; }
+    DbSet<DeviceEvent> DeviceEvents { get; }
+    DbSet<Schedule> Schedules { get; }
+    DbSet<AutoCloseSettings> AutoCloseSettings { get; }
 
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

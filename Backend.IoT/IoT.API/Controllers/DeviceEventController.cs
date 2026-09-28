@@ -1,7 +1,7 @@
-﻿using IoT.API.Security;
-using IoT.Application.Devices.Events;
+using IoT.API.Security;
+using IoT.Application.Common.Exceptions;
+using IoT.Application.Devices;
 using IoT.Domain.Entities.Devices;
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IoT.API.Controllers;
@@ -10,73 +10,41 @@ namespace IoT.API.Controllers;
 [Route("api/device/events")]
 public class DeviceEventsController : ControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly IDeviceEventService _events;
 
-    public DeviceEventsController(IMediator mediator)
+    public DeviceEventsController(IDeviceEventService events)
     {
-        _mediator = mediator;
+        _events = events;
     }
 
-    // ============================
-    // REQUEST DTO
-    // ============================
+    /// <summary>
+    /// Matches the body the firmware builds in sendDeviceEvent: enum NAMES, not numbers.
+    /// </summary>
     public sealed class DeviceEventRequest
     {
         public string Type { get; init; } = null!;
         public string? Source { get; init; }
     }
 
-    // ============================
-    // POST /api/device/events
-    // ============================
     [DeviceAuthorize]
     [HttpPost]
-    public async Task<IActionResult> Create(
-        [FromHeader(Name = "X-Device-Key")] string deviceKey,
-        [FromBody] DeviceEventRequest request)
+    public async Task<IActionResult> Create([FromBody] DeviceEventRequest request, CancellationToken ct)
     {
-        // Device resolved by DeviceAuthorize filter
-        var device = HttpContext.Items["Device"] as DeviceEntity;
-        if (device is null)
-            return Unauthorized();
+        var device = (Device)HttpContext.Items["Device"]!;
 
-        // ----------------------------
-        // Parse Event Type (REQUIRED)
-        // ----------------------------
-        if (!Enum.TryParse<DeviceEventType>(
-                request.Type,
-                ignoreCase: true,
-                out var eventType))
+        if (!Enum.TryParse<DeviceEventType>(request.Type, ignoreCase: true, out var eventType))
+            throw new BusinessRuleException($"Invalid event type: {request.Type}");
+
+        // Source is optional; the firmware omits it for system-raised events.
+        var source = DeviceEventSource.System;
+
+        if (!string.IsNullOrWhiteSpace(request.Source)
+            && !Enum.TryParse(request.Source, ignoreCase: true, out source))
         {
-            return BadRequest($"Invalid event type: {request.Type}");
+            throw new BusinessRuleException($"Invalid event source: {request.Source}");
         }
 
-        // ----------------------------
-        // Parse Event Source (OPTIONAL)
-        // Default = System
-        // ----------------------------
-        DeviceEventSource eventSource;
-
-        if (string.IsNullOrWhiteSpace(request.Source))
-        {
-            eventSource = DeviceEventSource.System;
-        }
-        else if (!Enum.TryParse<DeviceEventSource>(
-                     request.Source,
-                     ignoreCase: true,
-                     out eventSource))
-        {
-            return BadRequest($"Invalid event source: {request.Source}");
-        }
-
-        // ----------------------------
-        // Send Command
-        // ----------------------------
-        await _mediator.Send(new CreateDeviceEventCommand(
-            device.Id,
-            eventType,
-            eventSource
-        ));
+        await _events.RecordAsync(device.Id, eventType, source, ct: ct);
 
         return Ok();
     }

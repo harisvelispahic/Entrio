@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace IoT.Infrastructure.Database.Configurations;
 
-public class DeviceEventConfiguration : IEntityTypeConfiguration<DeviceEventEntity>
+public class DeviceEventConfiguration : IEntityTypeConfiguration<DeviceEvent>
 {
-    public void Configure(EntityTypeBuilder<DeviceEventEntity> builder)
+    public void Configure(EntityTypeBuilder<DeviceEvent> builder)
     {
         builder.ToTable("DeviceEvents");
 
