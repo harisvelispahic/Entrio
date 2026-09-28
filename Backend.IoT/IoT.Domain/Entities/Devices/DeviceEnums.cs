@@ -47,3 +47,22 @@ public enum DeviceEventSource
     AutoClose = 3,
     System = 4
 }
+
+/// <summary>
+/// What kind of client last authenticated as the device.
+///
+/// The simulator announces itself with an X-Device-Client header; the firmware sends
+/// nothing, so silence means real hardware. This exists so the UI can say which one it
+/// is honestly instead of always claiming an ESP32 is attached.
+/// </summary>
+public enum DeviceClientKind
+{
+    /// <summary>Nothing has reported in yet.</summary>
+    Unknown = 0,
+
+    /// <summary>The ESP32 firmware, which sends no client header.</summary>
+    Hardware = 1,
+
+    /// <summary>tools/device-simulator, standing in for the disassembled board.</summary>
+    Simulator = 2
+}

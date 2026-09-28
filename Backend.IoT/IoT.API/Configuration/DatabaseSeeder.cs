@@ -99,7 +99,9 @@ public static class DatabaseSeeder
             Name = "Garage Door",
             DeviceKeyHash = keyHash,
             DeviceKeySalt = keySalt,
-            LastSeenAtUtc = DateTime.UtcNow
+            // Nothing has reported in yet; the first authenticated call sets both of these.
+            LastSeenAtUtc = DateTime.MinValue,
+            LastClientKind = DeviceClientKind.Unknown
         });
 
         // A status row so the dashboard shows a closed door immediately, rather than

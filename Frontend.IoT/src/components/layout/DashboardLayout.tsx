@@ -1,6 +1,8 @@
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
+import { DeviceIndicator } from './DeviceIndicator';
 import { Separator } from '@/components/ui/separator';
+import { DeviceStatusProvider } from '@/contexts/DeviceStatusContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -9,6 +11,8 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <SidebarProvider>
+      {/* One poll of /door/status feeds the header, the sidebar footer and the dashboard. */}
+      <DeviceStatusProvider>
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
@@ -17,10 +21,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="h-6" />
             <div className="flex-1" />
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-              <span>System Online</span>
-            </div>
+            <DeviceIndicator compact />
           </header>
 
           {/* Main content */}
@@ -29,6 +30,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </main>
         </div>
       </div>
+      </DeviceStatusProvider>
     </SidebarProvider>
   );
 }

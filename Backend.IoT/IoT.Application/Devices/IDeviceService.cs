@@ -11,6 +11,15 @@ public interface IDeviceService
     /// </summary>
     Task<Device> GetAsync(CancellationToken ct = default);
 
-    /// <summary>Verifies an X-Device-Key and bumps LastSeenAtUtc. Null when it does not match.</summary>
-    Task<Device?> AuthenticateAsync(string deviceKey, CancellationToken ct = default);
+    /// <summary>
+    /// Verifies an X-Device-Key, bumps LastSeenAtUtc and records what reported in.
+    /// Null when the key does not match.
+    /// </summary>
+    /// <param name="clientHeader">
+    /// The X-Device-Client header, if any. The firmware sends none, so null means hardware.
+    /// </param>
+    Task<Device?> AuthenticateAsync(
+        string deviceKey,
+        string? clientHeader = null,
+        CancellationToken ct = default);
 }

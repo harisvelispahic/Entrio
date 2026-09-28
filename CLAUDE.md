@@ -125,6 +125,14 @@ raw exception. Do not use `return BadRequest(...)`/`Problem(...)` in new code.
   Device endpoints resolve the device from its `X-Device-Key` via
   `HttpContext.Items["Device"]`, never from a body field, so an authenticated device
   can only ever act as itself. The firmware still sends `deviceId`; it is ignored.
+- **Device connectivity is derived, never asserted.** `Device.LastSeenAtUtc` and
+  `LastClientKind` are written on every authenticated device call; the UI treats a gap
+  over `DEVICE_OFFLINE_AFTER_MS` (30s) as offline. The simulator sends
+  `X-Device-Client: simulator`; the firmware sends nothing, so ABSENCE means hardware —
+  which is why identifying the simulator needed no firmware change. Never hardcode a
+  connection status.
+- **One poll feeds everything.** `DeviceStatusProvider` polls `/door/status` once and the
+  header, sidebar and dashboard read from it. Do not add a second poller for the same fact.
 - **A user schedule is TWO rows sharing a `ScheduleGroupId`**: the Open or Vent and the
   Close that must follow it. `ScheduleGroupId == null` means the row is system-raised
   (currently only auto-close), and that distinction is load-bearing: `ArmAsync`

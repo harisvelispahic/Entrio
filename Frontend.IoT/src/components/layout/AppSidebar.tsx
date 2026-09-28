@@ -13,7 +13,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Calendar, BarChart3, DoorOpen, LogOut, Cog } from "lucide-react";
+import { LayoutDashboard, Calendar, BarChart3, DoorOpen, LogOut } from "lucide-react";
+import { DeviceIndicator } from "./DeviceIndicator";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
@@ -75,10 +76,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-sidebar-foreground/60">
-            <Cog className="h-4 w-4 animate-spin" style={{ animationDuration: "3s" }} />
-            <span>ESP32 Connected</span>
-          </div>
+          <DeviceIndicator />
           <Button
             variant="ghost"
             size="sm"

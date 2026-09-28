@@ -34,12 +34,31 @@ export interface LoginResponse {
   token: string;
 }
 
+/** Mirrors DeviceClientKind on the API. */
+export enum DeviceClientKind {
+  Unknown = 0,
+  Hardware = 1,
+  Simulator = 2,
+}
+
 export interface DoorStatus {
   position: number; // 0-100, 0 = closed, 100 = open
   state: DoorState;
   obstacle?: boolean;
   lastUpdated?: string;
+  /** When the controller last authenticated. MinValue-ish means it never has. */
+  lastSeenAtUtc?: string;
+  /** What last reported in, so the UI states hardware or simulator rather than guessing. */
+  lastClientKind?: DeviceClientKind;
 }
+
+/**
+ * How long after its last check-in the controller is treated as offline.
+ *
+ * The firmware reports status every 10s and polls for commands every 1-4s, so a gap
+ * beyond this means it has actually stopped talking rather than simply being idle.
+ */
+export const DEVICE_OFFLINE_AFTER_MS = 30_000;
 
 /** Mirrors ScheduleEntryKind on the API. */
 export enum ScheduleEntryKind {

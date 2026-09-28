@@ -19,6 +19,13 @@ public class Device
     /// </summary>
     public DateTime LastSeenAtUtc { get; set; }
 
+    /// <summary>
+    /// What last reported in. Recorded on every authenticated device call, alongside
+    /// <see cref="LastSeenAtUtc"/>, so the dashboard can distinguish real hardware from
+    /// the simulator rather than asserting one or the other.
+    /// </summary>
+    public DeviceClientKind LastClientKind { get; set; }
+
     public DeviceStatus Status { get; set; } = null!;
     public ICollection<DeviceCommand> Commands { get; set; } = new List<DeviceCommand>();
     public ICollection<DeviceEvent> Events { get; set; } = new List<DeviceEvent>();

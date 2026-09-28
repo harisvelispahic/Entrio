@@ -11,6 +11,13 @@ namespace IoT.API.Security;
 public class DeviceAuthorizeAttribute : Attribute, IAsyncActionFilter
 {
     public const string HeaderName = "X-Device-Key";
+
+    /// <summary>
+    /// Optional header a non-hardware client uses to identify itself. The firmware sends
+    /// none, so its absence means real hardware.
+    /// </summary>
+    public const string ClientHeaderName = "X-Device-Client";
+
     public const string DeviceItemKey = "Device";
 
     public async Task OnActionExecutionAsync(
@@ -25,7 +32,10 @@ public class DeviceAuthorizeAttribute : Attribute, IAsyncActionFilter
             return;
         }
 
-        var device = await devices.AuthenticateAsync(key!, context.HttpContext.RequestAborted);
+        context.HttpContext.Request.Headers.TryGetValue(ClientHeaderName, out var client);
+
+        var device = await devices.AuthenticateAsync(
+            key!, client.FirstOrDefault(), context.HttpContext.RequestAborted);
 
         if (device is null)
         {

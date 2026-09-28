@@ -49,7 +49,15 @@ const state = {
 };
 
 function headers(extra = {}) {
-  return { "X-Device-Key": DEVICE_KEY, ...extra };
+  return {
+    "X-Device-Key": DEVICE_KEY,
+    // Identifies this as the stand-in rather than real hardware, so the dashboard can
+    // say "simulated environment" instead of claiming an ESP32 is attached. The firmware
+    // sends no such header, so its absence is what means hardware -- which is why this
+    // needed no firmware change.
+    "X-Device-Client": "simulator",
+    ...extra,
+  };
 }
 
 async function call(method, path, body) {

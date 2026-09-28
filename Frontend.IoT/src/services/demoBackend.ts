@@ -1,4 +1,5 @@
 import {
+  DeviceClientKind,
   DoorCommand,
   DoorEvent,
   DoorState,
@@ -133,6 +134,10 @@ export const demoBackend = {
       state: state.state,
       obstacle: state.obstacle,
       lastUpdated: state.lastUpdated,
+      // Always "just now", so the indicator reads as a live simulated device rather than
+      // reporting the demo as offline.
+      lastSeenAtUtc: new Date().toISOString(),
+      lastClientKind: DeviceClientKind.Simulator,
     };
   },
 

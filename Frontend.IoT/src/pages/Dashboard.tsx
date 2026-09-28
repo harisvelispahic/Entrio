@@ -2,13 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DoorVisualization } from "@/components/door/DoorVisualization";
 import { DoorControls } from "@/components/door/DoorControls";
 import { AutoCloseCard } from "@/components/door/AutoCloseCard";
-import { useDoorStatus } from "@/hooks/useDoorStatus";
+import { useDeviceStatus } from "@/contexts/DeviceStatusContext";
 import { Activity, Clock, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { DoorState, DoorStateLabels } from "@/config/api";
 
 export default function Dashboard() {
-  const { status, isLoading, activeCommand, error, sendCommand } = useDoorStatus();
+  // Reads the shared poll rather than starting its own, so the header, sidebar and this
+  // page can never disagree about the door's state.
+  const { status, apiError, isDeviceOnline, isCommandInFlight, activeCommand, sendCommand } =
+    useDeviceStatus();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -19,11 +22,11 @@ export default function Dashboard() {
       </div>
 
       {/* Error banner */}
-      {error && (
+      {apiError && (
         <Card className="border-warning bg-warning/10">
           <CardContent className="flex items-center gap-3 py-3">
             <AlertTriangle className="h-5 w-5 text-warning" />
-            <span className="text-sm text-warning">{error}</span>
+            <span className="text-sm text-warning">{apiError}</span>
           </CardContent>
         </Card>
       )}
@@ -53,7 +56,11 @@ export default function Dashboard() {
 
         {/* Controls */}
         <div className="space-y-6">
-          <DoorControls onCommand={sendCommand} isLoading={isLoading} activeCommand={activeCommand} />
+            <DoorControls
+            onCommand={sendCommand}
+            isLoading={isCommandInFlight}
+            activeCommand={activeCommand}
+          />
           <AutoCloseCard />
         </div>
       </div>
@@ -120,21 +127,22 @@ export default function Dashboard() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Connection</p>
-                {/* Derived from the polling result. This used to be hardcoded to
-                    "Online" and stayed green even while every request was failing. */}
-                <p className={`text-2xl font-bold ${error ? "text-destructive" : "text-success"}`}>
-                  {error ? "Offline" : "Online"}
+                <p className="text-sm text-muted-foreground">Controller</p>
+                {/* Derived from the device's own last check-in, not from a constant and
+                    not from API health -- a reachable API says nothing about whether the
+                    controller is still talking. */}
+                <p className={`text-2xl font-bold ${isDeviceOnline ? "text-success" : "text-destructive"}`}>
+                  {isDeviceOnline ? "Online" : "Offline"}
                 </p>
               </div>
               <div
                 className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                  error ? "bg-destructive/10" : "bg-success/10"
+                  isDeviceOnline ? "bg-success/10" : "bg-destructive/10"
                 }`}
               >
                 <div
                   className={`h-3 w-3 rounded-full ${
-                    error ? "bg-destructive" : "bg-success animate-pulse"
+                    isDeviceOnline ? "bg-success animate-pulse" : "bg-destructive"
                   }`}
                 />
               </div>

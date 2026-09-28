@@ -21,7 +21,13 @@ public class DeviceService : IDeviceService
         await _db.Devices.FirstOrDefaultAsync(ct)
         ?? throw new NotFoundException("No device is registered in the system.");
 
-    public async Task<Device?> AuthenticateAsync(string deviceKey, CancellationToken ct = default)
+    /// <summary>Value the simulator sends in X-Device-Client to identify itself.</summary>
+    private const string SimulatorClient = "simulator";
+
+    public async Task<Device?> AuthenticateAsync(
+        string deviceKey,
+        string? clientHeader = null,
+        CancellationToken ct = default)
     {
         // Single-device system, so there is exactly one candidate to check against.
         var device = await _db.Devices.FirstOrDefaultAsync(ct);
@@ -33,6 +39,14 @@ public class DeviceService : IDeviceService
             return null;
 
         device.LastSeenAtUtc = DateTime.UtcNow;
+
+        // No header means the ESP32 firmware, which sends none. Only the simulator
+        // identifies itself, so hardware needs no firmware change to be reported
+        // correctly.
+        device.LastClientKind = string.Equals(clientHeader, SimulatorClient, StringComparison.OrdinalIgnoreCase)
+            ? DeviceClientKind.Simulator
+            : DeviceClientKind.Hardware;
+
         await _db.SaveChangesAsync(ct);
 
         return device;

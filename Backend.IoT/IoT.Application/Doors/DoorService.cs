@@ -32,7 +32,8 @@ public class DoorService : IDoorService
             status.DoorState,
             status.ObstacleDetected,
             status.UpdatedAtUtc,
-            device.LastSeenAtUtc);
+            device.LastSeenAtUtc,
+            device.LastClientKind);
     }
 
     public async Task SendCommandAsync(DoorCommandRequest request, CancellationToken ct = default)
