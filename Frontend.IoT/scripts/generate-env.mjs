@@ -48,12 +48,19 @@ if (envFile) {
   );
 }
 
-const missing = PUBLIC_KEYS.filter((key) => !process.env[key]);
+// Demo mode reaches no network at all — every service short-circuits to demoBackend —
+// so the API URL is not required there. This matters for hosted builds: the Vercel
+// deployment has no .env (it is gitignored) and no backend to point at, and requiring
+// the URL there failed the build outright.
+const demoMode = forceDemo || String(process.env.DEMO_MODE).toLowerCase() === "true";
+
+const missing = demoMode ? [] : PUBLIC_KEYS.filter((key) => !process.env[key]);
 
 if (missing.length > 0) {
   console.error(
     `[generate-env] Missing required value(s): ${missing.join(", ")}.\n` +
-      `Add them to ${envFile ?? "the repo-root .env"} (see .env.example).`,
+      `Add them to ${envFile ?? "the repo-root .env"} (see .env.example).\n` +
+      `For a deployment with no backend, set DEMO_MODE=true instead.`,
   );
   process.exit(1);
 }
@@ -64,7 +71,7 @@ const values = Object.fromEntries(
     .map((key) => [key, process.env[key]]),
 );
 
-if (forceDemo) {
+if (demoMode) {
   values.DEMO_MODE = "true";
 }
 

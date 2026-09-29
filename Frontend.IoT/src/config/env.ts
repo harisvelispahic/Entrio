@@ -55,9 +55,18 @@ function optionalFlag(name: string): boolean {
   return value.toLowerCase() === "true";
 }
 
+// Read first, because it decides whether the API URL is required at all.
+const demoMode = optionalFlag("DEMO_MODE");
+
 export const env = {
-  /** Base URL of the API, including the /api prefix. Must be reachable from the BROWSER. */
-  apiBaseUrl: required("API_BASE_URL"),
+  /**
+   * Base URL of the API, including the /api prefix. Must be reachable from the BROWSER.
+   *
+   * Empty in demo mode, where nothing reaches the network: every service short-circuits
+   * to demoBackend before touching this. Requiring it there would throw at module load
+   * and white-screen the backendless deployment the demo exists for.
+   */
+  apiBaseUrl: demoMode ? "" : required("API_BASE_URL"),
 
   /**
    * Runs the app against an in-memory simulation instead of a real API.
@@ -68,5 +77,5 @@ export const env = {
    * UI states plainly that the data is simulated -- unlike the silent mock-data
    * fallback this replaces, which was indistinguishable from real data.
    */
-  demoMode: optionalFlag("DEMO_MODE"),
+  demoMode,
 };
