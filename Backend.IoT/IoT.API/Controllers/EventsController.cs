@@ -17,17 +17,15 @@ public class EventsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetEvents(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<DeviceEventResponse>>> GetEvents(CancellationToken ct)
     {
         var events = await _events.GetRecentAsync(ct: ct);
 
-        return Ok(events.Select(e => new
-        {
-            id = e.Id,
-            eventType = e.EventType.ToString(),
-            source = e.Source.ToString(),
-            timestamp = e.OccurredAtUtc,
-            details = e.Details
-        }));
+        return Ok(events.Select(e => new DeviceEventResponse(
+            e.Id,
+            e.EventType.ToString(),
+            e.Source.ToString(),
+            e.OccurredAtUtc,
+            e.Details)).ToList());
     }
 }

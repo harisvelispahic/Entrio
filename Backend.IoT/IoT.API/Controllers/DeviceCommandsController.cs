@@ -24,7 +24,7 @@ public class DeviceCommandsController : ControllerBase
 
     [DeviceAuthorize]
     [HttpGet("pending")]
-    public async Task<IActionResult> GetPending(CancellationToken ct)
+    public async Task<ActionResult<PendingCommandResponse>> GetPending(CancellationToken ct)
     {
         var command = await _commands.GetPendingAsync(CurrentDevice.Id, ct);
 
@@ -32,12 +32,10 @@ public class DeviceCommandsController : ControllerBase
         if (command is null)
             return NoContent();
 
-        return Ok(new
-        {
-            id = command.Id,
-            commandType = (int)command.CommandType,
-            targetPercentage = command.TargetPercentage
-        });
+        return Ok(new PendingCommandResponse(
+            command.Id,
+            (int)command.CommandType,
+            command.TargetPercentage));
     }
 
     [DeviceAuthorize]

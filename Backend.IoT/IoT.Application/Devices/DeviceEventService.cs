@@ -37,13 +37,23 @@ public class DeviceEventService : IDeviceEventService
             ? DeviceEventSource.System
             : Enum.Parse<DeviceEventSource>(request.Source, ignoreCase: true);
 
+        await RecordAsync(deviceId, eventType, source, details: null, ct);
+    }
+
+    public async Task RecordAsync(
+        Guid deviceId,
+        DeviceEventType eventType,
+        DeviceEventSource source,
+        string? details = null,
+        CancellationToken ct = default)
+    {
         _db.DeviceEvents.Add(new DeviceEvent
         {
             Id = Guid.NewGuid(),
             DeviceId = deviceId,
             EventType = eventType,
             Source = source,
-            Details = null,
+            Details = details,
             OccurredAtUtc = DateTime.UtcNow
         });
 

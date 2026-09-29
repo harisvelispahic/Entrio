@@ -20,21 +20,23 @@ public class AutoCloseController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get(CancellationToken ct)
+    public async Task<ActionResult<AutoCloseSettingsResponse>> Get(CancellationToken ct)
     {
         var device = await _devices.GetAsync(ct);
         var settings = await _autoClose.GetSettingsAsync(device.Id, ct);
 
-        return Ok(new { enabled = settings.Enabled, afterSeconds = settings.AfterSeconds });
+        return Ok(new AutoCloseSettingsResponse(settings.Enabled, settings.AfterSeconds));
     }
 
     [HttpPut]
-    public async Task<IActionResult> Update([FromBody] AutoCloseSettingsRequest request, CancellationToken ct)
+    public async Task<ActionResult<AutoCloseSettingsResponse>> Update(
+        [FromBody] AutoCloseSettingsRequest request,
+        CancellationToken ct)
     {
         var device = await _devices.GetAsync(ct);
 
         var settings = await _autoClose.UpdateSettingsAsync(device.Id, request, ct);
 
-        return Ok(new { enabled = settings.Enabled, afterSeconds = settings.AfterSeconds });
+        return Ok(new AutoCloseSettingsResponse(settings.Enabled, settings.AfterSeconds));
     }
 }

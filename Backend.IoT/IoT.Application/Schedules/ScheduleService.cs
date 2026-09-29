@@ -11,15 +11,18 @@ public class ScheduleService : IScheduleService
 {
     private readonly IAppDbContext _db;
     private readonly IDeviceCommandService _commands;
+    private readonly IDeviceEventService _events;
     private readonly IValidator<CreateScheduleRequest> _createValidator;
 
     public ScheduleService(
         IAppDbContext db,
         IDeviceCommandService commands,
+        IDeviceEventService events,
         IValidator<CreateScheduleRequest> createValidator)
     {
         _db = db;
         _commands = commands;
+        _events = events;
         _createValidator = createValidator;
     }
 
@@ -142,12 +145,31 @@ public class ScheduleService : IScheduleService
                 ct);
 
             schedule.WasTriggered = true;
+
+            // Record WHY the door is about to move. Without this the event log only ever
+            // showed the controller's own DoorOpened/DoorClosed, so the analytics source
+            // breakdown could never report Schedule or AutoClose -- two of its five
+            // categories were unreachable.
+            var isAutoClose = schedule.ScheduleGroupId is null;
+
+            await _events.RecordAsync(
+                schedule.DeviceId,
+                isAutoClose ? DeviceEventType.AutoCloseTriggered : DeviceEventType.ScheduleTriggered,
+                isAutoClose ? DeviceEventSource.AutoClose : DeviceEventSource.Schedule,
+                details: DescribeCommand(schedule),
+                ct);
         }
 
         await _db.SaveChangesAsync(ct);
 
         return due.Count;
     }
+
+    /// <summary>Fills the Details column in the event log, which was always empty before.</summary>
+    private static string DescribeCommand(Schedule schedule) =>
+        schedule.CommandType == DeviceCommandType.Vent
+            ? $"Vent to {schedule.TargetPercentage}%"
+            : schedule.CommandType.ToString();
 
     /// <summary>
     /// Turns the rows of one group into a single entry. Returns null once the opening half

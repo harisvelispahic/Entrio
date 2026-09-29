@@ -517,6 +517,14 @@ on that same address. A containerised backend needs no firmware changes at all.
 
 3. Ensure the ESP32 and your PC are on the same WiFi, then upload from the Arduino IDE.
 
+To check a device key without flashing anything:
+
+```bash
+curl -i -X POST http://localhost:5263/api/device/ping -H "X-Device-Key: <your key>"
+```
+
+`200 DEVICE AUTH OK` means the key matches the seeded device; `401` means it does not.
+
 The device's identity GUID `0f8fad5b-d9cb-469f-a165-70867728950e` is hardcoded in the
 firmware's status payload and in the seeder (`DatabaseSeeder.FirmwareDeviceId`). Both
 must agree. The frontend no longer needs it: the API resolves the single device

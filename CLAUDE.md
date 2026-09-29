@@ -125,6 +125,16 @@ raw exception. Do not use `return BadRequest(...)`/`Problem(...)` in new code.
   Device endpoints resolve the device from its `X-Device-Key` via
   `HttpContext.Items["Device"]`, never from a body field, so an authenticated device
   can only ever act as itself. The firmware still sends `deviceId`; it is ignored.
+- **Enums cross the wire as INTEGERS.** No `JsonStringEnumConverter` is registered, and
+  both clients depend on that: the firmware parses `commandType` with
+  `doc["commandType"] | -1` and the frontend compares against numeric `DoorState`
+  members. Registering a global string-enum converter would break the device, which
+  cannot be reflashed. `PendingCommandResponse` casts to `int` explicitly as a guard.
+  Event type and source are the exception and are deliberately strings, because only the
+  dashboard reads them.
+- **Controller actions return `ActionResult<T>`**, not `IActionResult` with an anonymous
+  object — otherwise Swagger documents no shape at all, which matters most for the device
+  endpoints whose contracts are frozen.
 - **Device connectivity is derived, never asserted.** `Device.LastSeenAtUtc` and
   `LastClientKind` are written on every authenticated device call; the UI treats a gap
   over `DEVICE_OFFLINE_AFTER_MS` (30s) as offline. The simulator sends

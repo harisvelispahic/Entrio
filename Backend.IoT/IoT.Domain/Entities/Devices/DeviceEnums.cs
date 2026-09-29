@@ -1,5 +1,11 @@
 ﻿namespace IoT.Domain.Entities.Devices;
 
+/// <summary>
+/// Positions the door reports. Mirrors the DoorState enum in the firmware, EXCEPT for
+/// <see cref="Error"/>, which the firmware has no equivalent for and therefore never
+/// sends. It is kept because the dashboard renders it, so a future controller could
+/// report a fault without a schema change.
+/// </summary>
 public enum DoorState
 {
     Closed = 0,
@@ -27,6 +33,16 @@ public enum DeviceCommandStatus
     Cancelled = 4
 }
 
+/// <summary>
+/// What happened. Raised either by the controller (DoorOpened, DoorClosed,
+/// ObstacleDetected, ObstacleCleared) or by the backend when a schedule fires
+/// (ScheduleTriggered, AutoCloseTriggered).
+///
+/// <see cref="ManualOpen"/> and <see cref="ManualClose"/> are not produced by anything:
+/// the firmware reports a local RFID or headlight-flash open as DoorOpened with source
+/// LocalRfid, which carries the same information. They are kept rather than removed
+/// because the hardware can no longer be reflashed to confirm it never sends them.
+/// </summary>
 public enum DeviceEventType
 {
     DoorOpened = 0,
